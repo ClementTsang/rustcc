@@ -144,7 +144,7 @@ pub fn parse_expression(token_vec : &mut Vec<lexer::Token>) -> Expression {
         data_type: String::from(""), val:0
     }; 
     
-    let mut tok : lexer::Token = get_next_token(token_vec);
+    let tok : lexer::Token = get_next_token(token_vec);
     assert!(tok.name == "Num", "Not a value.");
     result.val = tok.value.parse::<i32>().unwrap();
 
@@ -155,7 +155,7 @@ pub fn parse_expression(token_vec : &mut Vec<lexer::Token>) -> Expression {
     result
 }
 
-pub fn parse_to_ast(filename : &String) {
+pub fn parse_to_ast(filename : &String) -> Program {
     // Take in file.
     let mut file_contents = fs::read_to_string(filename).expect("Could not read file.");
     print!("=====Contents of file=====\n{}", file_contents);
@@ -170,9 +170,9 @@ pub fn parse_to_ast(filename : &String) {
     println!("=====End of tokens=====");
 
     // Parse tokens into AST
-    let result_AST : Program = parse_program(&mut token_vec); 
-    print_ast(&result_AST);
+    let result_ast : Program = parse_program(&mut token_vec); 
+    print_ast(&result_ast);
 
-    result_AST;
+    result_ast
 }
 

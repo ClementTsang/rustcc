@@ -3,6 +3,13 @@
 #![allow(unused_parens)]
 #![allow(unused_variables)]
 
+/**
+ * To do:
+ * Reorganize this mess
+ * Finish assembly
+ * THEN move on
+ **/
+
 
 use std::env;
 use std::fs;

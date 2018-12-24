@@ -8,6 +8,7 @@ use std::env;
 use std::fs;
 use std::str;
 use std::clone;
+use std::fmt;
 //use regex::Regex;
 
 const RETURN_KEYWORD : &str = "return";
@@ -17,6 +18,17 @@ const INT : &str  = "1234567890";
 struct Token {
     name : String,
     value : String,
+}
+
+impl fmt::Display for Token {
+    fn fmt (&self, f: &mut fmt:: Formatter) -> fmt::Result {
+        write!(f, "name: {}, value: {}", self.name, self.value)
+    }
+}
+
+struct AST { 
+    val : Token,
+    children : Vec<Token>,
 }
 
 
@@ -111,6 +123,9 @@ fn lexer(input : &mut String) -> Vec<Token> {
         }
     }
 
+    for token in &token_vec {
+        println!("Token: {}", token);
+    }
     token_vec
 }
 

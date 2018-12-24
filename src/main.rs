@@ -11,24 +11,42 @@ use std::clone;
 use std::fmt;
 //use regex::Regex;
 
-const RETURN_KEYWORD : &str = "return";
-const SEMICOLON : &str  = ";";
-const INT : &str  = "1234567890";
+
+struct Program { 
+    fnc : Function,
+}
+
+struct Function {
+    name : String,
+    return_type : String,
+    st : Statement,
+}
+
+struct Statement {
+    name : String,
+    exp : Expression,
+}
+
+struct Expression {
+    data_type : String,
+    val : i32,
+}
 
 struct Token {
     name : String,
     value : String,
 }
 
+impl Clone for Token {
+    fn clone(&self) -> Self {
+        Token { name: self.name.clone(), value: self.value.clone()}
+    }
+}
+
 impl fmt::Display for Token {
     fn fmt (&self, f: &mut fmt:: Formatter) -> fmt::Result {
         write!(f, "name: {}, value: {}", self.name, self.value)
     }
-}
-
-struct AST { 
-    val : Token,
-    children : Vec<Token>,
 }
 
 
@@ -48,6 +66,9 @@ fn is_punctuation (c : char) -> bool {
 }
 
 fn read_identifier (input : &mut String) -> Token {
+    let keywords = vec!["int", "return"];
+
+
     let mut iden_name = String::new();
     let tmp = input.clone();
     for c in tmp.chars() {
@@ -60,7 +81,12 @@ fn read_identifier (input : &mut String) -> Token {
         }
     }
 
-    Token {name : String::from("Identifier"), value : iden_name}
+    if (keywords.contains(&&*iden_name)) {
+        Token {name : String::from("Keyword"), value : iden_name}
+    }
+    else {
+        Token {name : String::from("Identifier"), value : iden_name}
+    }
 }
 
 fn read_number (input : &mut String) -> Token {
@@ -84,14 +110,132 @@ fn read_punc (input : &mut String) -> Token {
 
 
 
-fn print_ast () {
+fn print_ast (input_prog : &Program) {
+    println!("=====AST PRINT=====");
+
+    println!("FUN {} {}:", input_prog.fnc.return_type, input_prog.fnc.name);
+    println!("     params: (TO BE ADDED)");
+    println!("     body:");
+    println!("          {} {} <{}>", input_prog.fnc.st.name, input_prog.fnc.st.exp.data_type, input_prog.fnc.st.exp.val);
+        
+    println!("=====END AST PRINT=====");
 }
 
 fn print_assembly(){
     
 }
 
-fn parse_function(token_vec : Vec<Token>) {
+fn parse_program(token_vec : &mut Vec<Token>) -> Program {
+    let mut result : Program = Program { fnc : Function { 
+        name : String::from(""), 
+        return_type : String::from(""), 
+        st : Statement { 
+            name : String::from(""),
+            exp : Expression { 
+                data_type: String::from(""), val : 0 
+            }
+        }
+    }};
+    
+    // A program, by our grammar rules, MUST contain a function from the tokens passed in.
+    // We thus look for main().
+    
+    result.fnc = parse_function(token_vec);
+
+
+    result
+}
+
+fn get_option_token( op : Option<Token> ) -> Token {
+    match op {
+        None => { 
+            println!("Failed to get token from option");
+            std::process::exit(1);
+        },
+        Some(x) => { x },
+    }
+}
+
+fn get_next_token(token_vec : &mut Vec<Token>) -> Token {
+    let tok : Token = get_option_token(token_vec.first().cloned());
+    token_vec.remove(0);
+    //println!("Token obtained: {}", tok);
+    tok
+}
+
+fn parse_function(token_vec : &mut Vec<Token>) -> Function {
+    let mut result : Function  = Function {
+        name : String::from(""), 
+        return_type : String::from(""),
+        st : Statement { 
+            name: String::from(""), 
+            exp : Expression { 
+                data_type: String::from(""), val : 0 }
+        }
+    };
+
+    let mut tok : Token = get_next_token(token_vec);
+    assert!(tok.name == "Keyword", "Invalid keyword");
+    result.return_type = tok.value;
+    
+    tok = get_next_token(token_vec);
+    assert!(tok.name == "Identifier", "Invalid identifier");
+    result.name = tok.value;
+
+    tok = get_next_token(token_vec);
+    assert!(tok.name == "Punc" && tok.value == "(", "Invalid punc. (\"(\")");
+    // Param names go in between here!
+    tok = get_next_token(token_vec);
+    assert!(tok.name == "Punc" && tok.value == ")", "Invalid punc. (\")\")");
+
+    tok = get_next_token(token_vec);
+    assert!(tok.name == "Punc" && tok.value == "{", "Invalid punc. (\"{\")");
+
+    // Statement check
+    result.st = parse_statement(token_vec);
+
+    tok = get_next_token(token_vec);
+    assert!(tok.name == "Punc" && tok.value == "}", "Invalid punc. (\"}\")");
+
+
+    result
+}
+
+fn parse_statement(token_vec : &mut Vec<Token>) -> Statement {
+    let mut result : Statement = Statement {
+        name: String::from(""), 
+        exp : Expression { 
+            data_type: String::from(""), val : 0 
+        }
+    }; 
+    
+    let mut tok : Token = get_next_token(token_vec);
+    assert!(tok.name == "Keyword" && tok.value == "return", "Invalid keyword");
+    result.name = tok.value;
+
+    //Expression check
+    result.exp = parse_expression(token_vec);
+
+    tok = get_next_token(token_vec);
+    assert!(tok.value == ";", "Missing semicolon");
+    
+    result
+}
+
+fn parse_expression(token_vec : &mut Vec<Token>) -> Expression {
+    let mut result : Expression = Expression {
+        data_type: String::from(""), val:0
+    }; 
+    
+    let mut tok : Token = get_next_token(token_vec);
+    assert!(tok.name == "Num", "Not a value.");
+    result.val = tok.value.parse::<i32>().unwrap();
+
+    if (tok.name == "Num") {
+        result.data_type = String::from("Int");
+    }
+
+    result
 }
 
 fn lexer(input : &mut String) -> Vec<Token> {
@@ -122,10 +266,6 @@ fn lexer(input : &mut String) -> Vec<Token> {
             input.remove(0);
         }
     }
-
-    for token in &token_vec {
-        println!("Token: {}", token);
-    }
     token_vec
 }
 
@@ -134,14 +274,20 @@ fn parse_to_ast(filename : &String) {
     let mut file_contents = fs::read_to_string(filename).expect("Could not read file.");
     print!("=====Contents of file=====\n{}", file_contents);
     print!("=====End of file contents=====\n");
-    let token_vec : Vec<Token> = lexer(&mut file_contents);
-    
 
-    parse_function(token_vec); 
-    
+    // Convert to tokens
+    let mut token_vec : Vec<Token> = lexer(&mut file_contents);
+    println!("=====Resulting tokens=====");
+    for token in &token_vec {
+        println!("Token: {}", token);
+    }
+    println!("=====End of tokens=====");
 
-    // Print out resulting AST (for debugging).
-    print_ast();
+    // Parse tokens into AST
+    let result_AST : Program = parse_program(&mut token_vec); 
+    print_ast(&result_AST);
+
+    result_AST;
 }
 
 fn convert_ast_to_assembly() -> String {

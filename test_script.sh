@@ -32,16 +32,20 @@ test_compile_run() {
 
 run_test() {
     cargo run ${1} &> /dev/null
+
+    ret_val="$?"
+
+
     if [ ${2} -eq 0 ]; then
-        if [ "$?" -eq 0 ]; then
+        if [ $ret_val -eq 0 ]; then
             pass ${1} "Rust"
-        else 
+        elif [ $ret_val -ne 0 ]; then 
             fail ${1} "Rust"
         fi
-    else
-        if [ "$?" -ne 0 ]; then
+    elif [ ${2} -eq 1 ]; then
+        if [ $ret_val -ne 0 ]; then
             pass ${1} "Rust"
-        else 
+        elif [ $ret_val -eq 0 ]; then
             fail ${1} "Rust"
         fi
     fi
@@ -52,10 +56,12 @@ for dir in ./examples/*; do
         for tests in "${topic}/*.c"; do
             for test in ${tests}; do
                 #echo ${test}
-                if [ $dir = *"Passing"* ]; then
+                if [[ ${test} = *"Passing"* ]]; then
                     run_test "${test}" 0
-                else
+                    #echo "SHOULD PASS: $test"
+                elif [[ ${test} = *"Failing"* ]]; then
                     run_test "${test}" 1
+                    #echo "SHOULD \'FAIL\': $test"
                 fi
             done
         done

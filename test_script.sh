@@ -8,12 +8,25 @@ pass() {
     echo "Passed ${2} test ${1}"
 }
 
-test_compile() {
+test_compile_run() {
     gcc -m32 ${1} -o "${1%.*}" &> /dev/null
     if [ "$?" -ne 0 ]; then
         fail ${1} "compile"
     else
         pass ${1} "compile"
+    fi
+
+    ${1%.*} > /dev/null
+    ret_val="$?"
+    rm ${1%.*}
+
+    gcc -m32 "${1%.*}.c" -o "${1%.*}" > /dev/null
+    ${1%.*} > /dev/null
+
+    if [ "$?" -eq ${ret_val} ]; then
+        pass ${1} "run"
+    else
+        fail ${1} "run"
     fi
 }
 
@@ -52,7 +65,7 @@ done
 for dir in ./examples/Passing/*; do
     for topic in "${dir}/*.s"; do
         for test in ${topic}; do
-            test_compile "${test}" 0
+            test_compile_run "${test}"
             
         done
     done

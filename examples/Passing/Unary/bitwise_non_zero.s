@@ -1,5 +1,6 @@
     .globl    main
     .type main, @function
 main:
-    movl    $0, %eax
+    movl    $4, %eax
+    not    %eax
     ret

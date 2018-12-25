@@ -1,5 +1,6 @@
     .globl    main
     .type main, @function
 main:
-    movl    $100, %eax
+    movl    $5, %eax
+    neg    %eax
     ret

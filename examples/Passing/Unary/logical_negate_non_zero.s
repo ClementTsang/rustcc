@@ -1,6 +1,8 @@
     .globl    main
     .type main, @function
 main:
+    movl    $5, %eax
+    cmpl    $0, %eax
     movl    $0, %eax
-    neg    %eax
+    sete   %al
     ret

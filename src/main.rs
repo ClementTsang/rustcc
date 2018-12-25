@@ -40,7 +40,7 @@ fn generate_statement(st : &parser::Statement) -> String {
     if (st.name == "return") {
         result = String::from("    movl");
         result.push_str(generate_expr(&st.exp).as_str());
-        result.push_str("\n    ret");
+        result.push_str("    ret");
     }
     result
 }

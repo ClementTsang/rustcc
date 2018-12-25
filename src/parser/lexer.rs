@@ -44,6 +44,11 @@ pub fn is_punctuation (c : char) -> bool {
     punc.contains(c)
 }
 
+pub fn is_unary_op (c : char) -> bool {
+    let un_op = "-~!";
+    un_op.contains(c)
+}
+
 pub fn read_identifier (input : &mut String) -> Token {
     let keywords = vec!["int", "return"];
 
@@ -82,9 +87,15 @@ pub fn read_number (input : &mut String) -> Token {
 }
 
 pub fn read_punc (input : &mut String) -> Token {
-    let ret_punc = (*input).chars().next().unwrap().to_string();
+    let ret_punc = (input).chars().next().unwrap().to_string();
     input.remove(0); 
     Token {name : String::from("Punc"), value : ret_punc} 
+}
+
+pub fn read_unary_op (input : &mut String) -> Token {
+    let ret_un_op = (input).chars().next().unwrap().to_string();
+    input.remove(0);
+    Token{name : String::from("Unary_Op"), value : ret_un_op}
 }
 
 
@@ -106,6 +117,9 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
             }
             else if (is_punctuation(c)) {
                 token_vec.push(read_punc(input));
+            }
+            else if (is_unary_op(c)) {
+                token_vec.push(read_unary_op(input));
             }
             else {
                 println!("Found a character that the lexer does not recognize: {}.", c);       

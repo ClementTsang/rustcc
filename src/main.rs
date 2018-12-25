@@ -6,8 +6,8 @@
 
 /**
  * To do:
- * Finish assembly
- * THEN move on
+ * Rewrite datatypes to use builder format for ease
+ * Format resulting .s files better (Spacing is WHACK)
  **/
 
 pub mod parser;
@@ -38,17 +38,50 @@ fn generate_function(func : &parser::Function) -> String {
 fn generate_statement(st : &parser::Statement) -> String {
     let mut result = String::new();
     if (st.name == "return") {
-        result = String::from("    movl    ");
+        result = String::from("    movl");
         result.push_str(generate_expr(&st.exp).as_str());
-        result.push_str(", %eax");
         result.push_str("\n    ret");
     }
     result
 }
 
-fn generate_expr(expr : &parser::Expression) -> String {
-    let mut result = String::from("$");
-    result.push_str(expr.val.to_string().as_str());
+fn generate_expr(exp : &parser::Expression) -> String {
+    let mut result = String::new();
+    
+    if (exp.data_type.clone().as_str() != "Unary_Op") {
+        result.push_str("    $");
+        result.push_str(exp.val.to_string().as_str());
+        result.push_str(", %eax\n");
+    }
+    else {
+        match exp.inner_exp.clone() {
+            None => {
+                println!("Failed to process an expression - unary op missing next exp!");
+                std::process::exit(1);
+            },
+            Some(expr) => {
+                result.push_str(generate_expr(&(*expr)).as_str());
+                match exp.op.as_str() {
+                    "-" => {
+                        result.push_str("    neg    %eax\n");
+                    },
+                    "~" => {
+                        result.push_str("    not    %eax\n");
+                    },
+                    "!" => {
+                        result.push_str(
+                        "    cmpl    $0, %eax\n    movl    $0, %eax\n    sete   %al\n");
+                    },
+                    _ => {
+                        println!("Found an unsupported unary expression!");
+                        std::process::exit(1);
+                    },
+                }
+            },
+        }
+    }
+
+    
     result
 }
 

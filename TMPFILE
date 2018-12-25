@@ -1,0 +1,15 @@
+=====Contents of file=====
+int main() 
+    return 100;
+}
+=====End of file contents=====
+=====Resulting tokens=====
+Token: name: Keyword, value: int
+Token: name: Identifier, value: main
+Token: name: Punc, value: (
+Token: name: Punc, value: )
+Token: name: Keyword, value: return
+Token: name: Num, value: 100
+Token: name: Punc, value: ;
+Token: name: Punc, value: }
+=====End of tokens=====

@@ -1,11 +1,11 @@
 #!/bin/bash
 
 fail() {
-    echo "Failed ${2} test ${1}"
+    echo "${2} test => ${1} ----- FAILED"
 }
 
 pass() {
-    echo "Passed ${2} test ${1}"
+    echo "${2} test => ${1} ----- PASSED"
 }
 
 test_compile_run() {

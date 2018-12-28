@@ -8,7 +8,6 @@ use std::fs;
 use std::str;
 use std::clone;
 use std::fmt;
-//use regex::Regex;
 
 
 pub struct Token {
@@ -44,9 +43,19 @@ pub fn is_punctuation (c : char) -> bool {
     punc.contains(c)
 }
 
-pub fn is_unary_op (c : char) -> bool {
-    let un_op = "-~!";
-    un_op.contains(c)
+pub fn is_op (c : char) -> bool {
+    let op = "-~!+*/";
+    op.contains(c)
+}
+
+pub fn is_unary (c : char) -> bool {
+    let op = "-~!";
+    op.contains(c)
+}
+
+pub fn is_binary (c : char) -> bool {
+    let op = "+*/-";
+    op.contains(c)
 }
 
 pub fn read_identifier (input : &mut String) -> Token {
@@ -77,9 +86,12 @@ pub fn read_number (input : &mut String) -> Token {
     let mut iden_name = String::new();
     let tmp = input.clone();
     for c in tmp.chars() {
-        if (!c.is_whitespace() && !is_punctuation(c) && !is_letter(c)) {
+        if (!c.is_whitespace() && is_number(c)) {
             iden_name.push(c);
             input.remove(0);
+        }
+        else {
+            break;
         }
     }
 
@@ -87,17 +99,16 @@ pub fn read_number (input : &mut String) -> Token {
 }
 
 pub fn read_punc (input : &mut String) -> Token {
-    let ret_punc = (input).chars().next().unwrap().to_string();
+    let ret_punc = input.chars().next().unwrap().to_string();
     input.remove(0); 
     Token {name : String::from("Punc"), value : ret_punc} 
 }
 
-pub fn read_unary_op (input : &mut String) -> Token {
-    let ret_un_op = (input).chars().next().unwrap().to_string();
+pub fn read_op (input : &mut String) -> Token {
+    let ret_un_op = input.chars().next().unwrap().to_string();
     input.remove(0);
-    Token{name : String::from("Unary_Op"), value : ret_un_op}
+    Token{name : String::from("Op"), value : ret_un_op}
 }
-
 
 pub fn lexer(input : &mut String) -> Vec<Token> {
     let mut token_vec : Vec<Token> = Vec::new();
@@ -107,19 +118,18 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
         c = input.chars().next().unwrap();
 
         if (!c.is_whitespace()) {
-            //println!("Character: {}", c);
             if (is_letter(c)) {
                 // Must be identifier, as no quotes (not supported yet).
                 token_vec.push(read_identifier(input));
             }
-                else if (is_number(c)) {
+            else if (is_number(c)) {
                 token_vec.push(read_number(input));
             }
             else if (is_punctuation(c)) {
                 token_vec.push(read_punc(input));
             }
-            else if (is_unary_op(c)) {
-                token_vec.push(read_unary_op(input));
+            else if (is_op(c)) {
+                token_vec.push(read_op(input));
             }
             else {
                 println!("Found a character that the lexer does not recognize: {}.", c);       

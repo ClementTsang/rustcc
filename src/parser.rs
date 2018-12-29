@@ -292,10 +292,11 @@ pub fn print_factor (factor : &Factor) {
 }
 
 pub fn print_unary (unary : &Unary) {
-   print!("{}", unary.op);
+   print!("{}(", unary.op);
    match unary.right_fact.clone() {
         Some(fact) => {
             print_factor(&(*fact));
+            print!(")");
         },
         None => {
         },
@@ -384,7 +385,7 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
 pub fn parse_expression(token_vec : &mut Vec<lexer::Token>) -> Expression {
     let mut result : Expression = Expression::new();
 
-    println!("GENERATING EXP");
+    //println!("GENERATING EXP");
    
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
@@ -399,7 +400,7 @@ pub fn parse_expression(token_vec : &mut Vec<lexer::Token>) -> Expression {
 
     while (tok.value == "-" || tok.value == "+") {
         result.op = String::from(tok.value.clone());
-        println!("Set expr: {}", result.op);
+        //println!("Set expr: {}", result.op);
         tok = get_next_token(token_vec);
 
         //println!("RIGHT TERM TOKEN: {}", tok.value.clone());
@@ -417,9 +418,9 @@ pub fn parse_expression(token_vec : &mut Vec<lexer::Token>) -> Expression {
         result.left_term = None;
         result.right_term = None;            
         result.op = String::new();
-        print!("RESULTING EXP: ");
-        print_exp(&result);
-        println!("");
+        //print!("RESULTING EXP: ");
+        //print_exp(&result);
+       // println!("");
     }
     result
 }
@@ -427,7 +428,7 @@ pub fn parse_expression(token_vec : &mut Vec<lexer::Token>) -> Expression {
 pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
     let mut result : Term = Term::new();
 
-    println!("GENERATING TERM");
+   // println!("GENERATING TERM");
    
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
@@ -442,7 +443,7 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
 
     while (tok.value == "*" || tok.value == "/") {
         result.op = String::from(tok.value.clone());
-        println!("Set expr: {}", result.op);
+        //println!("Set expr: {}", result.op);
         tok = get_next_token(token_vec);
         
         //println!("RIGHT FACTOR TOKEN: {}", tok.value.clone());
@@ -462,9 +463,9 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
         result.right_factor = None;            
         result.op = String::new();
 
-        print!("RESULTING TERM: ");
-        print_term(&result);
-        println!("");
+        //print!("RESULTING TERM: ");
+        //print_term(&result);
+        //println!("");
     }
 
     result
@@ -474,7 +475,7 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
 pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
     let mut result : Factor = Factor::new();
 
-    println!("GENERATING FACTOR.");
+    //println!("GENERATING FACTOR.");
 
     let mut tok : lexer::Token = peek_next_token(token_vec);
     
@@ -490,7 +491,7 @@ pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
         result.unary = Some(Box::new(parse_unary(token_vec)));
     }
     else if (tok.name == "Num") {
-        println!("GENERATED NUM: {}", tok.value);  
+        //println!("GENERATED NUM: {}", tok.value);  
         result.val = Some(tok.value.parse::<i32>().unwrap());
         token_vec.remove(0);
     }

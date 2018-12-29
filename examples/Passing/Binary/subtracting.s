@@ -4,6 +4,9 @@ main:
     movl    $5, %eax
     pushl   %eax
     movl    $6, %eax
+    neg     %eax
+    pushl   %eax
     popl    %ecx
-    imul    %ecx, %eax
+    popl    %eax
+    subl    %ecx, %eax
     ret

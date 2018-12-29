@@ -2,5 +2,5 @@
     .type main, @function
 main:
     movl    $0, %eax
-    neg    %eax
+    neg     %eax
     ret

@@ -445,10 +445,19 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
         result.op = String::from(tok.value.clone());
         //println!("Set expr: {}", result.op);
         tok = get_next_token(token_vec);
+       
+         if (tok.value == "/" && peek_next_token(token_vec).name == "Num") {
+            if (peek_next_token(token_vec).value.parse::<i32>().unwrap() == 0) {
+                println!("Tried dividing by zero.");
+                std::process::exit(1);
+            }
+        }
         
+
         //println!("RIGHT FACTOR TOKEN: {}", tok.value.clone());
         result.right_factor = Some(Box::new(parse_factor(token_vec)));
-        tok = peek_next_token(token_vec);
+
+       tok = peek_next_token(token_vec);
          
         //println!("IN */, NEXT IS: {}", tok.value);
         

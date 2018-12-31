@@ -18,7 +18,7 @@ pass() {
 
 test_compile_run() {
     if [ -e "${1%.*}" ]; then
-        rm ${1%.*}
+        rm "${1%.*}"
     fi
    
     compile_total_count=$((compile_total_count+1))
@@ -27,6 +27,7 @@ test_compile_run() {
     if [ "$?" -ne 0 ]; then
         fail ${1} "compile"
         compile_fail_count=$((compile_fail_count+1))
+        return 101;
     else
         pass ${1} "compile"
     fi
@@ -34,7 +35,9 @@ test_compile_run() {
     run_total_count=$((run_total_count+1))
     ${1%.*} > /dev/null
     ret_val="$?"
-    rm ${1%.*}
+    if [ -e "${1%.*}" ]; then
+        rm "${1%.*}"
+    fi
 
     gcc -m32 "${1%.*}.c" -o "${1%.*}" > /dev/null
     ${1%.*} > /dev/null
@@ -46,6 +49,7 @@ test_compile_run() {
         fail ${1} "run"
         echo "Saw ${ret_val}, wanted ${actual_val}."
         run_fail_count=$((run_fail_count+1))
+        return 101;
     fi
 }
 

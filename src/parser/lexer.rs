@@ -58,6 +58,11 @@ pub fn is_binary (c : char) -> bool {
     op.contains(c)
 }
 
+pub fn is_multi_op (val : &str) -> bool {
+    let op = vec!["<", ">", "<=", ">=", "==", "!=", "||", "&&"];
+    op.contains(&val)
+}
+
 pub fn read_identifier (input : &mut String) -> Token {
     let keywords = vec!["int", "return"];
 
@@ -105,9 +110,17 @@ pub fn read_punc (input : &mut String) -> Token {
 }
 
 pub fn read_op (input : &mut String) -> Token {
-    let ret_un_op = input.chars().next().unwrap().to_string();
+    let ret_op = input.chars().next().unwrap().to_string();
     input.remove(0);
-    Token{name : String::from("Op"), value : ret_un_op}
+    Token{name : String::from("Op"), value : ret_op}
+}
+
+pub fn read_multi_op(input : &mut String) -> Token {
+    let mut ret_op = input.chars().next().unwrap().to_string();
+    input.remove(0);
+    ret_op.push(input.chars().next().unwrap());
+    input.remove(0);
+    Token{name : String::from("Op"), value : ret_op}
 }
 
 pub fn lexer(input : &mut String) -> Vec<Token> {
@@ -118,6 +131,21 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
         c = input.chars().next().unwrap();
 
         if (!c.is_whitespace()) {
+            if (input.len() > 1) {
+                let mut tmp_input = input.clone();
+                tmp_input.remove(0);
+                let tmp_char : char = tmp_input.chars().next().unwrap();
+                let test_val : String = if tmp_char.is_whitespace() {
+                    c.to_string()
+                } 
+                else { 
+                    c.to_string() + tmp_char.to_string().as_str()
+                };
+                if (is_multi_op(test_val.as_str())) {
+                    token_vec.push(read_multi_op(input));
+                    continue;
+                }
+            }
             if (is_letter(c)) {
                 // Must be identifier, as no quotes (not supported yet).
                 token_vec.push(read_identifier(input));

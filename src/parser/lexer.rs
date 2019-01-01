@@ -68,6 +68,10 @@ pub fn is_multi_op (val : &str) -> bool {
     op.contains(&val)
 }
 
+pub fn is_assign_op (c : char) -> bool {
+    c == '='
+}
+
 pub fn read_identifier (input : &mut String) -> Token {
     let keywords = vec!["int", "return"];
 
@@ -120,7 +124,15 @@ pub fn read_op (input : &mut String) -> Token {
     Token{name : String::from("Op"), value : ret_op}
 }
 
-pub fn read_multi_op(ret_op : String) -> Token {
+pub fn read_assign_op(input : &mut String) -> Token {
+    input.remove(0);
+    Token{name : String::from("Assign"), value : String::from("=")}
+}
+
+pub fn read_multi_op(input : &mut String, ret_op : String) -> Token {
+    for x in 0..ret_op.len() {
+        input.remove(0);
+    }
     Token{name : String::from("Op"), value : ret_op}
 }
 
@@ -145,16 +157,16 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
                 };
 
                 if (is_multi_op(test_val.as_str())) {
-                    token_vec.push(read_multi_op(test_val.clone()));
-                    for x in 0..test_val.len() {
-                        input.remove(0);
-                    }
+                    token_vec.push(read_multi_op(input, test_val.clone()));      
                     continue;
                 }
             }
             if (is_letter(c)) {
                 // Must be identifier, as no quotes (not supported yet).
                 token_vec.push(read_identifier(input));
+            }
+            else if (is_assign_op(c)) {
+                token_vec.push(read_assign_op(input));
             }
             else if (is_number(c)) {
                 token_vec.push(read_number(input));

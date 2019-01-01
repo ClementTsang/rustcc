@@ -30,14 +30,26 @@ fn print_assembly(input : &String){
 fn generate_function(func : &parser::Function) -> String {
     let mut result : String = String::from(func.name.clone().as_str());
     result.push_str(":\n");
-    result.push_str(generate_statement(&func.st).as_str());
+    match func.list_of_st.first() {
+        Some(x) => {
+            result.push_str(generate_statement(&x).as_str());
+        },
+        None => (),
+    }
     result
 }
 
 fn generate_statement(st : &parser::Statement) -> String {
     let mut result = String::new();
     if (st.name == "return") {
-        result.push_str(generate_or_expr(&st.exp).as_str());
+        match st.exp.clone() {
+            Some(x) => {
+                result.push_str(generate_or_expr(&x).as_str());
+            },
+            None => (),
+        }
+
+                                       
         result.push_str("    ret");
     }
     result

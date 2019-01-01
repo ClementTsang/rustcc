@@ -19,13 +19,25 @@ pub struct Program {
 pub struct Function {
     pub name : String,
     pub return_type : String,
-    pub st : Statement,
+    pub list_of_st : Vec<Statement>,
     pub params : Vec<String>,
 }
 
 pub struct Statement {
     pub name : String,
+    pub exp : Option<OrExpression>,
+    pub decl : Option<Declaration>,
+}
+
+pub struct Assignment {
+    pub name : String,
     pub exp : OrExpression,
+}
+
+pub struct Declaration {
+    pub var_name : String,
+    pub val : Option<i32>, //CHANGE WHEN WE HAVE VAR TYPES!
+    pub var_type : String,
 }
 
 pub struct OrExpression {
@@ -96,7 +108,7 @@ impl Function {
         Function {
             name : String::new(),
             return_type : String::new(),
-            st : Statement::new(),
+            list_of_st : Vec::new(),
             params : Vec::new(),
         }
     }
@@ -106,7 +118,18 @@ impl Statement {
     pub fn new () -> Statement {
         Statement {
             name : String::new(),
-            exp : OrExpression::new(),
+            exp : None,
+            decl : None,
+        }
+    }
+}
+
+impl Declaration {
+    pub fn new() -> Declaration {
+        Declaration {
+            var_name : String::new(),
+            val : None,
+            var_type : String::new(),
         }
     }
 }
@@ -294,9 +317,14 @@ pub fn print_ast (input_prog : &Program) {
     }
     println!(")");
     println!("     body:");
-    
-    print!("          {} ", input_prog.fnc.st.name);
-    print_or(&input_prog.fnc.st.exp);
+   
+    for st in &input_prog.fnc.list_of_st {
+        print!("          {} ", st.name);
+        match st.exp.clone() {
+            Some (x) => print_or(&x),
+            None => (),
+        }
+    }
     
     println!("\n=====END AST PRINT=====");
 }
@@ -627,7 +655,7 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     assert!(tok.name == "Punc" && tok.value == "{", "Invalid punc. (\"{\")");
 
     // Statement check
-    result.st = parse_statement(token_vec);
+    result.list_of_st.push(parse_statement(token_vec));
 
     tok = get_next_token(token_vec);
     assert!(tok.name == "Punc" && tok.value == "}", "Invalid punc. (\"}\")");
@@ -640,11 +668,27 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     let mut result : Statement = Statement::new();
 
     let mut tok : lexer::Token = get_next_token(token_vec);
-    assert!(tok.name == "Keyword" && tok.value == "return", "Invalid keyword");
+    
+    // We must set this up to accept three cases: 
+    // * Var dec
+    // * Var assign
+    // * Return
+    
+    assert!(tok.name == "Keyword" && tok.value == "return", "Invalid keyword, saw {}.", tok.value);
     result.name = tok.value;
 
     //Expression check
-    result.exp = parse_or_exp(token_vec);
+    result.exp = Some(parse_or_exp(token_vec));
+
+    // AHHHHHHHHHHHHHHHHH THIS DOES NOT WORK HERE
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    // AHHHHHHHHHHHHHHHHHHHHHHHH
 
     tok = get_next_token(token_vec);
     assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);

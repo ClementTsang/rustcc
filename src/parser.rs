@@ -25,12 +25,40 @@ pub struct Function {
 
 pub struct Statement {
     pub name : String,
-    pub exp : Expression,
+    pub exp : OrExpression,
 }
 
-pub struct Expression {
+pub struct OrExpression {
     pub op : String,
-    pub left_exp : Option<Box<Expression>>,
+    pub left_exp : Option<Box<OrExpression>>,
+    pub left_and_exp : Option<Box<AndExpression>>,
+    pub right_and_exp : Option<Box<AndExpression>>,
+}
+
+pub struct AndExpression {
+    pub op : String,
+    pub left_exp : Option<Box<AndExpression>>,
+    pub left_equal_exp : Option<Box<EqualityExp>>,
+    pub right_equal_exp : Option<Box<EqualityExp>>,
+}
+
+pub struct EqualityExp {
+    pub op : String,
+    pub left_exp : Option<Box<EqualityExp>>,
+    pub left_relation_exp : Option<Box<RelationalExp>>,
+    pub right_relation_exp : Option<Box<RelationalExp>>,
+}
+
+pub struct RelationalExp {
+    pub op : String,
+    pub left_exp : Option<Box<RelationalExp>>,
+    pub left_add_exp : Option<Box<AdditiveExp>>,
+    pub right_add_exp : Option<Box<AdditiveExp>>,
+}
+
+pub struct AdditiveExp {
+    pub op : String,
+    pub left_exp : Option<Box<AdditiveExp>>,
     pub left_term : Option<Box<Term>>,
     pub right_term : Option<Box<Term>>,
 }
@@ -45,7 +73,7 @@ pub struct Term {
 pub struct Factor {
     pub op : String,
     pub unary : Option<Box<Unary>>,
-    pub exp : Option<Box<Expression>>,
+    pub exp : Option<Box<OrExpression>>,
     pub val : Option<i32>,
 }
 
@@ -78,14 +106,58 @@ impl Statement {
     pub fn new () -> Statement {
         Statement {
             name : String::new(),
-            exp : Expression::new(),
+            exp : OrExpression::new(),
         }
     }
 }
 
-impl Expression {
-    pub fn new() -> Expression {
-        Expression {
+impl OrExpression {
+    pub fn new() -> OrExpression {
+        OrExpression {
+            op : String::new(),
+            left_exp : None,
+            left_and_exp : None,
+            right_and_exp : None,
+        }
+    }
+}
+
+impl AndExpression {
+    pub fn new() -> AndExpression {
+        AndExpression {
+            op : String::new(),
+            left_exp : None,
+            left_equal_exp : None,
+            right_equal_exp : None,
+        }
+    }
+}
+
+impl EqualityExp {
+    pub fn new() -> EqualityExp {
+        EqualityExp {
+            op : String::new(),
+            left_exp : None,
+            left_relation_exp : None,
+            right_relation_exp : None,
+        }
+    }
+}
+
+impl RelationalExp {
+    pub fn new() -> RelationalExp {
+        RelationalExp {
+            op : String::new(),
+            left_exp : None,
+            left_add_exp : None,
+            right_add_exp : None,
+        }
+    }
+}
+
+impl AdditiveExp {
+    pub fn new() -> AdditiveExp {
+        AdditiveExp {
             op : String::new(),
             left_exp : None,
             left_term : None,
@@ -125,9 +197,54 @@ impl Unary {
     }
 }
 
-impl Clone for Expression {
+impl Clone for OrExpression {
     fn clone(&self) -> Self {
-        Expression { 
+        OrExpression { 
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_and_exp : self.left_and_exp.clone(),
+            right_and_exp : self.right_and_exp.clone(),
+        }
+    }
+}
+
+impl Clone for AndExpression {
+    fn clone(&self) -> Self {
+        AndExpression {
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_equal_exp : self.left_equal_exp.clone(),
+            right_equal_exp : self.right_equal_exp.clone(),
+        }
+    }
+}
+
+impl Clone for EqualityExp {
+    fn clone(&self) -> Self {
+        EqualityExp {
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_relation_exp : self.left_relation_exp.clone(),
+            right_relation_exp : self.right_relation_exp.clone(),
+        }
+    }
+}
+
+
+impl Clone for RelationalExp {
+    fn clone(&self) -> Self {
+        RelationalExp {
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_add_exp : self.left_add_exp.clone(),
+            right_add_exp : self.right_add_exp.clone(),
+        }
+    }
+}
+
+impl Clone for AdditiveExp {
+    fn clone(&self) -> Self {
+        AdditiveExp {
             op : self.op.clone(),
             left_exp : self.left_exp.clone(),
             left_term : self.left_term.clone(),
@@ -179,41 +296,41 @@ pub fn print_ast (input_prog : &Program) {
     println!("     body:");
     
     print!("          {} ", input_prog.fnc.st.name);
-    print_exp(&input_prog.fnc.st.exp);
+    print_or(&input_prog.fnc.st.exp);
     
     println!("\n=====END AST PRINT=====");
 }
 
 
-pub fn print_exp (exp : &Expression) {
+pub fn print_or (exp : &OrExpression) {
     match exp.left_exp.clone() {
         Some(lexp) => {
-            match exp.right_term.clone() {
-                Some(rterm) => {
+            match exp.right_and_exp.clone() {
+                Some(rand_exp) => {
                     print!("(");
-                    print_exp(&*lexp);
+                    print_or(&*lexp);
                     print!(" {} ", exp.op);
-                    print_term(&(*rterm));
+                    print_and(&*rand_exp);
                     print!(")");
                 },
                 None => {
-                    print_exp(&*lexp);
+                    print_or(&*lexp);
                 },
             }
         },
         None => {
-            match exp.left_term.clone() {
-                    Some(lterm) => {
-                        match exp.right_term.clone() {
-                            Some(rterm) => {
+            match exp.left_and_exp.clone() {
+                    Some(land_exp) => {
+                        match exp.right_and_exp.clone() {
+                            Some(rand_exp) => {
                                 print!("(");
-                                print_term(&(*lterm));
+                                print_and(&*land_exp);
                                 print!(" {} ", exp.op);
-                                print_term(&(*rterm));
+                                print_and(&(*rand_exp));
                                 print!(")");
                             },
                             None => {
-                                print_term(&(*lterm));
+                                print_and(&*land_exp);
                             },
                         }
                     },
@@ -224,8 +341,161 @@ pub fn print_exp (exp : &Expression) {
     }
 }
 
+pub fn print_and (exp : &AndExpression) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_equal_exp.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_and(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_eq(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_and(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_equal_exp.clone() {
+                    Some(lchild) => {
+                        match exp.right_equal_exp.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_eq(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_eq(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_eq(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
 
+pub fn print_eq(exp : &EqualityExp) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_relation_exp.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_eq(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_rel(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_eq(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_relation_exp.clone() {
+                    Some(lchild) => {
+                        match exp.right_relation_exp.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_rel(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_rel(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_rel(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
 
+pub fn print_rel(exp : &RelationalExp) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_add_exp.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_rel(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_add(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_rel(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_add_exp.clone() {
+                    Some(lchild) => {
+                        match exp.right_add_exp.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_add(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_add(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_add(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
+
+pub fn print_add(exp : &AdditiveExp) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_term.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_add(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_term(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_add(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_term.clone() {
+                    Some(lchild) => {
+                        match exp.right_term.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_term(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_term(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_term(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
 
 pub fn print_term (term : &Term) {
     match term.left_term.clone() {
@@ -275,7 +545,7 @@ pub fn print_factor (factor : &Factor) {
         None => {
             match factor.exp.clone() {
                 Some(e) => {
-                    print_exp(&*e);
+                    print_or(&*e);
                 },
                 None => {
                     match factor.val {
@@ -374,7 +644,7 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     result.name = tok.value;
 
     //Expression check
-    result.exp = parse_expression(token_vec);
+    result.exp = parse_or_exp(token_vec);
 
     tok = get_next_token(token_vec);
     assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
@@ -382,46 +652,176 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     result
 }
 
-pub fn parse_expression(token_vec : &mut Vec<lexer::Token>) -> Expression {
-    let mut result : Expression = Expression::new();
+pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
+    let mut result : OrExpression = OrExpression::new();
 
-    //println!("GENERATING EXP");
    
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            tok.name == "Op", "Invalid term.");
 
-    //println!("LEFT TERM TOKEN: {}", tok.value);
+    result.left_and_exp = Some(Box::new(parse_and_exp(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == "||") {
+        result.op = String::from(tok.value.clone());
+        tok = get_next_token(token_vec);
+
+        result.right_and_exp = Some(Box::new(parse_and_exp(token_vec)));
+        tok = peek_next_token(token_vec);
+
+        result.left_exp = Some(Box::new(OrExpression {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_and_exp : result.left_and_exp.clone(),
+            right_and_exp : result.right_and_exp.clone(),
+        }));
+
+        result.left_and_exp = None;
+        result.right_and_exp = None;            
+        result.op = String::new();
+    }
+    result
+}
+
+pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
+    let mut result : AndExpression = AndExpression::new();
+
+   
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           tok.name == "Op", "Invalid term.");
+
+    result.left_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == "&&") {
+        result.op = String::from(tok.value.clone());
+        tok = get_next_token(token_vec);
+
+        result.right_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
+        tok = peek_next_token(token_vec);
+        
+        result.left_exp = Some(Box::new(AndExpression {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_equal_exp : result.left_equal_exp.clone(),
+            right_equal_exp : result.right_equal_exp.clone(),
+        }));
+
+        result.left_equal_exp = None;
+        result.right_equal_exp = None;            
+        result.op = String::new();
+    }
+    result
+}
+
+pub fn parse_equal_exp(token_vec : &mut Vec<lexer::Token>) -> EqualityExp {
+    let mut result : EqualityExp = EqualityExp::new();
+
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           tok.name == "Op", "Invalid term.");
+
+    result.left_relation_exp = Some(Box::new(parse_rel_exp(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == "==" || tok.value == "!=") {
+        result.op = String::from(tok.value.clone());
+        tok = get_next_token(token_vec);
+
+        result.right_relation_exp = Some(Box::new(parse_rel_exp(token_vec)));
+        tok = peek_next_token(token_vec);
+        
+        result.left_exp = Some(Box::new(EqualityExp {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_relation_exp : result.left_relation_exp.clone(),
+            right_relation_exp : result.right_relation_exp.clone(),
+        }));
+
+        result.left_relation_exp = None;
+        result.right_relation_exp = None;            
+        result.op = String::new();
+    }
+    result
+}
+
+
+pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
+    let mut result : RelationalExp = RelationalExp::new();
+
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           tok.name == "Op", "Invalid term.");
+
+    result.left_add_exp = Some(Box::new(parse_add_exp(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == ">" || tok.value == ">=" || tok.value == "<" || tok.value == "<=") {
+        result.op = String::from(tok.value.clone());
+        tok = get_next_token(token_vec);
+
+        result.right_add_exp = Some(Box::new(parse_add_exp(token_vec)));
+        tok = peek_next_token(token_vec);
+        
+        result.left_exp = Some(Box::new(RelationalExp {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_add_exp : result.left_add_exp.clone(),
+            right_add_exp : result.right_add_exp.clone(),
+        }));
+
+        result.left_add_exp = None;
+        result.right_add_exp = None;            
+        result.op = String::new();
+    }
+
+
+    result
+}
+
+
+pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
+    let mut result : AdditiveExp = AdditiveExp::new();
+
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           tok.name == "Op", "Invalid term.");
+
     result.left_term = Some(Box::new(parse_term(token_vec)));
     
     tok = peek_next_token(token_vec);
-    //println!("TOK PEEK IN EXP: {}", tok.value);
 
     while (tok.value == "-" || tok.value == "+") {
         result.op = String::from(tok.value.clone());
-        //println!("Set expr: {}", result.op);
         tok = get_next_token(token_vec);
 
-        //println!("RIGHT TERM TOKEN: {}", tok.value.clone());
         result.right_term = Some(Box::new(parse_term(token_vec)));
         tok = peek_next_token(token_vec);
-        //println!("IN +-, NEXT IS: {}", tok.value);
         
-        result.left_exp = Some(Box::new(Expression {
+        result.left_exp = Some(Box::new(AdditiveExp {
             op : result.op.clone(),
             left_exp : result.left_exp.clone(),
-            left_term : result.left_term.clone(),
+            left_term: result.left_term.clone(),
             right_term : result.right_term.clone(),
         }));
 
-        result.left_term = None;
-        result.right_term = None;            
+        result.left_term= None;
+        result.right_term= None;            
         result.op = String::new();
-        //print!("RESULTING EXP: ");
-        //print_exp(&result);
-       // println!("");
     }
+
+
     result
 }
 
@@ -491,7 +891,7 @@ pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
     if (tok.value == "(") {
         //println!("FOUND (");
         token_vec.remove(0);
-        result.exp = Some(Box::new(parse_expression(token_vec)));
+        result.exp = Some(Box::new(parse_or_exp(token_vec)));
         tok = get_next_token(token_vec);
         assert!(tok.value==")", "Missing closing paren, saw {}.", tok.value);
         //println!("FOUND )");

@@ -68,13 +68,13 @@ fn generate_function(func : &parser::Function) -> String {
 fn generate_statement(st : &parser::Statement) -> String {
     let mut result = String::new();
     if (st.name == "return") {
-        result.push_str(generate_expr(&st.exp).as_str());
+        result.push_str(generate_or_expr(&st.exp).as_str());
         result.push_str("    ret");
     }
     result
 }
 
-fn generate_expr_rterm(expr : &parser::Expression, rterm : &parser::Term) -> String {
+fn generate_expr_rterm(expr : &parser::AdditiveExp, rterm : &parser::Term) -> String {
     let mut result = String::new();
     match expr.op.as_str() {
         "-" => {
@@ -102,33 +102,33 @@ fn generate_expr_rterm(expr : &parser::Expression, rterm : &parser::Term) -> Str
 
 }
 
-fn generate_expr(exp : &parser::Expression) -> String {
+fn generate_or_expr(exp : &parser::OrExpression) -> String {
 
 
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
-            match exp.right_term.clone() {
-                Some(rterm) => {
-                    result.push_str(generate_expr(&*lexp).as_str());
-                    result.push_str(generate_expr_rterm(exp, &*rterm).as_str());
+            match exp.right_and_exp.clone() {
+                Some(rchild) => {
+                    result.push_str(generate_or_expr(&*lexp).as_str());
+                    //result.push_str(generate_expr_rterm(exp, &*rterm).as_str());
                 },
                 None => {
-                    result.push_str(generate_expr(&*lexp).as_str());
+                    result.push_str(generate_or_expr(&*lexp).as_str());
                 },
             }
         },
         None => {
-            match exp.left_term.clone() {
-                    Some(lterm) => {
-                        match exp.right_term.clone() {
-                            Some(rterm) => {
-                                result.push_str(generate_term(&*lterm).as_str());
-                                result.push_str(generate_expr_rterm(exp, &*rterm).as_str());
+            match exp.left_and_exp.clone() {
+                    Some(lchild) => {
+                        match exp.right_and_exp.clone() {
+                            Some(rchild) => {
+                                //result.push_str(generate_term(&*lterm).as_str());
+                                //result.push_str(generate_expr_rterm(exp, &*rterm).as_str());
                             },
                             None => {
-                                result.push_str(generate_term(&*lterm).as_str());
+                                //result.push_str(generate_term(&*lterm).as_str());
                             },
                         }
                     },
@@ -217,7 +217,7 @@ fn generate_factor(factor : &parser::Factor) -> String {
         None => {
             match factor.exp.clone() {
                 Some(e) => {
-                    result.push_str(generate_expr(&*e).as_str());
+                    result.push_str(generate_or_expr(&*e).as_str());
                 },
                 None => {
                     match factor.val {

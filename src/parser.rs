@@ -652,17 +652,18 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     result
 }
 
+pub fn valid_unary(s : String) -> bool {
+    let op = vec!["!", "~", "-", "+"];
+    return op.contains(&(s.as_str()));
+}
+
 pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
     let mut result : OrExpression = OrExpression::new();
 
     let mut tok : lexer::Token = peek_next_token(token_vec);
-
-
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.value == "-" ||
-           tok.value == "~" ||
-           tok.value == "!", "Invalid term.");
+           valid_unary(tok.value), "Invalid or_exp.");
 
     result.left_and_exp = Some(Box::new(parse_and_exp(token_vec)));
     
@@ -696,9 +697,7 @@ pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.value == "-" ||
-           tok.value == "~" ||
-           tok.value == "!", "Invalid term.");
+           valid_unary(tok.value), "Invalid and_exp.");
 
     result.left_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
     
@@ -731,9 +730,7 @@ pub fn parse_equal_exp(token_vec : &mut Vec<lexer::Token>) -> EqualityExp {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.value == "-" ||
-           tok.value == "~" ||
-           tok.value == "!", "Invalid term.");
+           valid_unary(tok.value), "Invalid equal_exp.");
 
     result.left_relation_exp = Some(Box::new(parse_rel_exp(token_vec)));
     
@@ -767,9 +764,7 @@ pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.value == "-" ||
-           tok.value == "~" ||
-           tok.value == "!", "Invalid term.");
+           valid_unary(tok.value), "Invalid rel_exp.");
 
     result.left_add_exp = Some(Box::new(parse_add_exp(token_vec)));
     
@@ -805,11 +800,43 @@ pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.value == "-" ||
-           tok.value == "~" ||
-           tok.value == "!", "Invalid term.");
+           valid_unary(tok.value.clone()), "Invalid add_exp.");
 
+    // Edge case for if there is no value to the right of the addition:
     result.left_term = Some(Box::new(parse_term(token_vec)));
+    if (tok.value == "+") {
+        match result.left_term.clone() {
+            Some(x) => {
+                match (&*x).left_term.clone() {
+                    Some(y) => (),
+                    None => {
+                        match (&*x).left_factor.clone() {
+                            None => (),
+                            Some (y) => {
+                                match (&*x).right_factor.clone() {
+                                    Some (y) => (),
+                                    None => {
+                                        result.left_term = Some(Box::new(Term{
+                                            op : String::new(),
+                                            left_term : None,
+                                            left_factor: Some(Box::new(Factor {
+                                                op : String::new(),
+                                                unary : None,
+                                                exp : None,
+                                                val : Some(0),
+                                            })),
+                                            right_factor : None,
+                                        }));
+                                    }
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+            None => (),
+        }
+    }
     
     tok = peek_next_token(token_vec);
 
@@ -844,9 +871,7 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.value == "-" ||
-           tok.value == "~" ||
-           tok.value == "!", "Invalid term.");
+           valid_unary(tok.value), "Invalid term.");
 
     //println!("LEFT FACTOR TOKEN: {}", tok.value);
     result.left_factor = Some(Box::new(parse_factor(token_vec)));

@@ -655,11 +655,14 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
 pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
     let mut result : OrExpression = OrExpression::new();
 
-   
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
+
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.name == "Op", "Invalid term.");
+           tok.value == "-" ||
+           tok.value == "~" ||
+           tok.value == "!", "Invalid term.");
 
     result.left_and_exp = Some(Box::new(parse_and_exp(token_vec)));
     
@@ -693,7 +696,9 @@ pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.name == "Op", "Invalid term.");
+           tok.value == "-" ||
+           tok.value == "~" ||
+           tok.value == "!", "Invalid term.");
 
     result.left_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
     
@@ -726,7 +731,9 @@ pub fn parse_equal_exp(token_vec : &mut Vec<lexer::Token>) -> EqualityExp {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.name == "Op", "Invalid term.");
+           tok.value == "-" ||
+           tok.value == "~" ||
+           tok.value == "!", "Invalid term.");
 
     result.left_relation_exp = Some(Box::new(parse_rel_exp(token_vec)));
     
@@ -760,7 +767,9 @@ pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.name == "Op", "Invalid term.");
+           tok.value == "-" ||
+           tok.value == "~" ||
+           tok.value == "!", "Invalid term.");
 
     result.left_add_exp = Some(Box::new(parse_add_exp(token_vec)));
     
@@ -796,7 +805,9 @@ pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.name == "Op", "Invalid term.");
+           tok.value == "-" ||
+           tok.value == "~" ||
+           tok.value == "!", "Invalid term.");
 
     result.left_term = Some(Box::new(parse_term(token_vec)));
     
@@ -833,7 +844,9 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
     let mut tok : lexer::Token = peek_next_token(token_vec);
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           tok.name == "Op", "Invalid factor.");
+           tok.value == "-" ||
+           tok.value == "~" ||
+           tok.value == "!", "Invalid term.");
 
     //println!("LEFT FACTOR TOKEN: {}", tok.value);
     result.left_factor = Some(Box::new(parse_factor(token_vec)));

@@ -30,14 +30,18 @@ pub struct Statement {
 }
 
 pub struct Assignment {
-    pub name : String,
+    pub var : Variable,
     pub exp : OrExpression,
 }
 
 pub struct Declaration {
-    pub var_name : String,
+    pub var : Variable,
     pub val : Option<i32>, //CHANGE WHEN WE HAVE VAR TYPES!
     pub var_type : String,
+}
+
+pub struct Variable {
+    pub var_name : String,
 }
 
 pub struct OrExpression {
@@ -87,6 +91,7 @@ pub struct Factor {
     pub unary : Option<Box<Unary>>,
     pub exp : Option<Box<OrExpression>>,
     pub val : Option<i32>,
+    pub var : Option<Variable>,
 }
 
 pub struct Unary {
@@ -127,9 +132,17 @@ impl Statement {
 impl Declaration {
     pub fn new() -> Declaration {
         Declaration {
-            var_name : String::new(),
+            var : Variable::new(),
             val : None,
             var_type : String::new(),
+        }
+    }
+}
+
+impl Variable {
+    pub fn new() -> Variable {
+        Variable {
+            var_name : String::new(),
         }
     }
 }
@@ -207,6 +220,7 @@ impl Factor {
             unary : None,
             exp: None,
             val : None,
+            var : None,
         }
     }
 }
@@ -216,6 +230,14 @@ impl Unary {
         Unary {
             op : String::new(),
             right_fact : None,
+        }
+    }
+}
+
+impl Clone for Variable {
+    fn clone(&self) -> Self {
+        Variable {
+            var_name : self.var_name.clone(),
         }
     }
 }
@@ -294,6 +316,7 @@ impl Clone for Factor {
             unary : self.unary.clone(),
             exp : self.exp.clone(),
             val : self.val,
+            var: self.var.clone(),
         }
     }
 }
@@ -673,7 +696,12 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     // * Var dec
     // * Var assign
     // * Return
-    
+   
+    // Var dec
+
+    // Var assign
+
+    // Return
     assert!(tok.name == "Keyword" && tok.value == "return", "Invalid keyword, saw {}.", tok.value);
     result.name = tok.value;
 
@@ -868,6 +896,7 @@ pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
                                                 unary : None,
                                                 exp : None,
                                                 val : Some(0),
+                                                var : None,
                                             })),
                                             right_factor : None,
                                         }));

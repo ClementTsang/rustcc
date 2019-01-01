@@ -58,6 +58,11 @@ pub fn is_binary (c : char) -> bool {
     op.contains(c)
 }
 
+pub fn is_multi_check (c : char) -> bool {
+    let op = "=|&";
+    op.contains(c)
+}
+
 pub fn is_multi_op (val : &str) -> bool {
     let op = vec!["<", ">", "<=", ">=", "==", "!=", "||", "&&"];
     op.contains(&val)
@@ -115,11 +120,7 @@ pub fn read_op (input : &mut String) -> Token {
     Token{name : String::from("Op"), value : ret_op}
 }
 
-pub fn read_multi_op(input : &mut String) -> Token {
-    let mut ret_op = input.chars().next().unwrap().to_string();
-    input.remove(0);
-    ret_op.push(input.chars().next().unwrap());
-    input.remove(0);
+pub fn read_multi_op(ret_op : String) -> Token {
     Token{name : String::from("Op"), value : ret_op}
 }
 
@@ -135,14 +136,19 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
                 let mut tmp_input = input.clone();
                 tmp_input.remove(0);
                 let tmp_char : char = tmp_input.chars().next().unwrap();
-                let test_val : String = if tmp_char.is_whitespace() {
+
+                let test_val : String = if (tmp_char.is_whitespace() || !is_multi_check(tmp_char)) {
                     c.to_string()
                 } 
                 else { 
                     c.to_string() + tmp_char.to_string().as_str()
                 };
+
                 if (is_multi_op(test_val.as_str())) {
-                    token_vec.push(read_multi_op(input));
+                    token_vec.push(read_multi_op(test_val.clone()));
+                    for x in 0..test_val.len() {
+                        input.remove(0);
+                    }
                     continue;
                 }
             }

@@ -667,7 +667,7 @@ pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
 
     while (tok.value == "||") {
         result.op = String::from(tok.value.clone());
-        tok = get_next_token(token_vec);
+        get_next_token(token_vec);
 
         result.right_and_exp = Some(Box::new(parse_and_exp(token_vec)));
         tok = peek_next_token(token_vec);
@@ -701,7 +701,7 @@ pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
 
     while (tok.value == "&&") {
         result.op = String::from(tok.value.clone());
-        tok = get_next_token(token_vec);
+        get_next_token(token_vec);
 
         result.right_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
         tok = peek_next_token(token_vec);
@@ -734,7 +734,7 @@ pub fn parse_equal_exp(token_vec : &mut Vec<lexer::Token>) -> EqualityExp {
 
     while (tok.value == "==" || tok.value == "!=") {
         result.op = String::from(tok.value.clone());
-        tok = get_next_token(token_vec);
+        get_next_token(token_vec);
 
         result.right_relation_exp = Some(Box::new(parse_rel_exp(token_vec)));
         tok = peek_next_token(token_vec);
@@ -768,7 +768,7 @@ pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
 
     while (tok.value == ">" || tok.value == ">=" || tok.value == "<" || tok.value == "<=") {
         result.op = String::from(tok.value.clone());
-        tok = get_next_token(token_vec);
+        get_next_token(token_vec);
 
         result.right_add_exp = Some(Box::new(parse_add_exp(token_vec)));
         tok = peek_next_token(token_vec);
@@ -804,7 +804,7 @@ pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
 
     while (tok.value == "-" || tok.value == "+") {
         result.op = String::from(tok.value.clone());
-        tok = get_next_token(token_vec);
+        get_next_token(token_vec);
 
         result.right_term = Some(Box::new(parse_term(token_vec)));
         tok = peek_next_token(token_vec);
@@ -913,7 +913,7 @@ pub fn parse_unary(token_vec : &mut Vec<lexer::Token>) -> Unary {
 
     //println!("GENERATING UNARY");
     
-    let mut tok : lexer::Token = get_option_token(token_vec.first().cloned());
+    let tok : lexer::Token = get_option_token(token_vec.first().cloned());
     result.op = String::from(tok.value);
     token_vec.remove(0);
     result.right_fact = Some(Box::new(parse_factor(token_vec)));

@@ -12,6 +12,7 @@ Cargo.lock
 # C stuff
 # Prerequisites
 *.d
+*.s
 
 # Object files
 *.o

@@ -1,5 +1,9 @@
     .globl    main
     .type main, @function
 main:
-    movl    $42, %eax
+    pushl   %ebp # Opening function
+    movl    %esp, %ebp
+    movl    $42, %eax # Constant integer reference
+    movl    %ebp, %esp # Close function
+    popl    %ebp
     ret

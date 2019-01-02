@@ -126,7 +126,7 @@ pub fn read_op (input : &mut String) -> Token {
 
 pub fn read_assign_op(input : &mut String) -> Token {
     input.remove(0);
-    Token{name : String::from("Assign"), value : String::from("=")}
+    Token{name : String::from("AssignOp"), value : String::from("=")}
 }
 
 pub fn read_multi_op(input : &mut String, ret_op : String) -> Token {
@@ -186,6 +186,8 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
             input.remove(0);
         }
     }
+
+    token_vec.push(Token{name : String::from("EOF TOKEN"), value : String::from("EOF")});
     token_vec
 }
 

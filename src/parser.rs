@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(unused_variables)]
-
+#![allow(while_true)]
 
 pub mod lexer;
 
@@ -25,18 +25,19 @@ pub struct Function {
 
 pub struct Statement {
     pub name : String,
-    pub exp : Option<OrExpression>,
+    pub exp : Option<Assignment>,
     pub decl : Option<Declaration>,
 }
 
 pub struct Assignment {
-    pub var : Variable,
-    pub exp : OrExpression,
+    pub var : Option<Variable>,
+    pub assign : Option<Box<Assignment>>,
+    pub exp : Option<OrExpression>,
 }
 
 pub struct Declaration {
     pub var : Variable,
-    pub val : Option<i32>, //CHANGE WHEN WE HAVE VAR TYPES!
+    pub exp : Assignment,
     pub var_type : String,
 }
 
@@ -89,7 +90,7 @@ pub struct Term {
 pub struct Factor {
     pub op : String,
     pub unary : Option<Box<Unary>>,
-    pub exp : Option<Box<OrExpression>>,
+    pub exp : Option<Box<Assignment>>,
     pub val : Option<i32>,
     pub var : Option<Variable>,
 }
@@ -129,11 +130,66 @@ impl Statement {
     }
 }
 
+impl Assignment {
+    pub fn new() -> Assignment {
+        Assignment {
+            var : None,
+            assign : None,
+            exp : None,
+        }
+    }
+
+    // This is horrible.
+    pub fn set_to_zero() -> Assignment {
+        Assignment {
+            var : None,
+            assign : None,
+            exp : Some(OrExpression {
+                op : String::new(),
+                left_exp : None,
+                left_and_exp : Some(Box::new(AndExpression{
+                    op : String::new(),
+                    left_exp : None,
+                    left_equal_exp : Some(Box::new(EqualityExp{
+                        op : String::new(),
+                        left_exp : None,
+                        left_relation_exp : Some(Box::new(RelationalExp {
+                            op : String::new(),
+                            left_exp : None,
+                            left_add_exp : Some(Box::new(AdditiveExp {
+                                op : String::new(),
+                                left_exp : None,
+                                left_term : Some(Box::new(Term {
+                                    op : String::new(),
+                                    left_term : None,
+                                    left_factor : Some(Box::new(Factor {
+                                        op : String::new(),
+                                        unary : None,
+                                        exp : None,
+                                        val : Some(0),
+                                        var : None,
+                                    })),
+                                    right_factor : None,
+                                })),
+                                right_term : None,
+                            })),
+                            right_add_exp : None,
+                        })),
+                        right_relation_exp : None,
+                    })),
+                    right_equal_exp : None,
+                })),
+                right_and_exp : None,
+            }),
+        }
+    }
+}
+
 impl Declaration {
     pub fn new() -> Declaration {
         Declaration {
             var : Variable::new(),
-            val : None,
+            exp : Assignment::new(),
             var_type : String::new(),
         }
     }
@@ -242,6 +298,26 @@ impl Clone for Variable {
     }
 }
 
+impl Clone for Declaration {
+    fn clone (&self) -> Self {
+        Declaration {
+            var : self.var.clone(),
+            exp : self.exp.clone(),
+            var_type : self.var_type.clone(),
+        }
+    }
+}
+
+impl Clone for Assignment {
+    fn clone(&self) -> Self {
+        Assignment {
+            var : self.var.clone(),
+            assign : self.assign.clone(),
+            exp : self.exp.clone(),
+        }
+    }
+}
+
 impl Clone for OrExpression {
     fn clone(&self) -> Self {
         OrExpression { 
@@ -344,12 +420,57 @@ pub fn print_ast (input_prog : &Program) {
     for st in &input_prog.fnc.list_of_st {
         print!("          {} ", st.name);
         match st.exp.clone() {
-            Some (x) => print_or(&x),
-            None => (),
+            Some (x) => {
+                print!("[ ");
+                print_assignment(&x);
+                println!(" ]");
+            },
+            None => {
+                match st.decl.clone() {
+                    Some (x) => {
+                        print!("[ ");
+                        print_declaration(&x);
+                        println!(" ]");
+                    },
+                    None => (),
+                }
+            },
         }
     }
     
-    println!("\n=====END AST PRINT=====");
+    println!("=====END AST PRINT=====");
+}
+
+pub fn print_declaration (decl : &Declaration) {
+    print!("{} {} = ", decl.var_type, decl.var.var_name);
+    print_assignment(&decl.exp);
+
+}
+
+pub fn print_assignment (exp : &Assignment) {
+
+    match exp.var.clone() {
+        Some(var) => {
+            print!("(");
+            print!("{} = ", var.var_name);
+        },
+        None => (),
+    }
+
+    match exp.assign.clone() {
+        Some(assign) => {
+            print_assignment(&*assign);
+        },
+        None => {
+            match exp.exp.clone() {
+                Some(exp) => {
+                    print_or(&exp);
+                    print!(")");
+                },
+                None => ()
+            }
+        },
+    }
 }
 
 
@@ -371,23 +492,23 @@ pub fn print_or (exp : &OrExpression) {
         },
         None => {
             match exp.left_and_exp.clone() {
-                    Some(land_exp) => {
-                        match exp.right_and_exp.clone() {
-                            Some(rand_exp) => {
-                                print!("(");
-                                print_and(&*land_exp);
-                                print!(" {} ", exp.op);
-                                print_and(&(*rand_exp));
-                                print!(")");
-                            },
-                            None => {
-                                print_and(&*land_exp);
-                            },
-                        }
-                    },
-                    None => {
-                    },
-                }               
+                Some(land_exp) => {
+                    match exp.right_and_exp.clone() {
+                        Some(rand_exp) => {
+                            print!("(");
+                            print_and(&*land_exp);
+                            print!(" {} ", exp.op);
+                            print_and(&(*rand_exp));
+                            print!(")");
+                        },
+                        None => {
+                            print_and(&*land_exp);
+                        },
+                    }
+                },
+                None => {
+                },
+            }               
         },
     }
 }
@@ -596,7 +717,7 @@ pub fn print_factor (factor : &Factor) {
         None => {
             match factor.exp.clone() {
                 Some(e) => {
-                    print_or(&*e);
+                    print_assignment(&*e);
                 },
                 None => {
                     match factor.val {
@@ -604,6 +725,12 @@ pub fn print_factor (factor : &Factor) {
                             print!("{}", v);
                         },
                         None => {
+                            match factor.var.clone() {
+                                Some(v) => {
+                                    print!("{}", v.var_name);
+                                },
+                                None => (),
+                            }
                         },
                     }
                 },
@@ -653,14 +780,19 @@ pub fn get_next_token(token_vec : &mut Vec<lexer::Token>) -> lexer::Token {
 }
 
 pub fn peek_next_token(token_vec : &Vec<lexer::Token>) -> lexer::Token {
-    let tok : lexer::Token = get_option_token(token_vec.first().cloned());
-    tok
+    get_option_token(token_vec.first().cloned())
+}
+
+pub fn peek_two_tokens(token_vec : &Vec<lexer::Token>) -> lexer::Token {
+    let mut tok_clone = token_vec.clone();
+    tok_clone.remove(0);
+    get_option_token(tok_clone.first().cloned())
 }
 
 pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     let mut result : Function  = Function::new();
-
     let mut tok : lexer::Token = get_next_token(token_vec);
+
     assert!(tok.name == "Keyword", "Invalid keyword");
     result.return_type = tok.value;
     
@@ -678,64 +810,133 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     assert!(tok.name == "Punc" && tok.value == "{", "Invalid punc. (\"{\")");
 
     // Statement check
-    result.list_of_st.push(parse_statement(token_vec));
+    while (peek_two_tokens(token_vec).value != "EOF" && peek_two_tokens(token_vec).name != "EOF TOKEN") {
+        result.list_of_st.push(parse_statement(token_vec));
+    }
 
     tok = get_next_token(token_vec);
     assert!(tok.name == "Punc" && tok.value == "}", "Invalid punc. (\"}\")");
 
-
     result
 }
 
+
+
 pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     let mut result : Statement = Statement::new();
-
-    let mut tok : lexer::Token = get_next_token(token_vec);
+    let mut tok : lexer::Token = peek_next_token(token_vec);
     
     // We must set this up to accept three cases: 
     // * Var dec
     // * Var assign
     // * Return
-   
-    // Var dec
+  
+    // Get expression
 
-    // Var assign
-
-    // Return
-    assert!(tok.name == "Keyword" && tok.value == "return", "Invalid keyword, saw {}.", tok.value);
-    result.name = tok.value;
-
-    //Expression check
-    result.exp = Some(parse_or_exp(token_vec));
-
-    // AHHHHHHHHHHHHHHHHH THIS DOES NOT WORK HERE
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    // AHHHHHHHHHHHHHHHHHHHHHHHH
+    // Modify this statement based on expression/tok values
+    if (tok.value == "return") {
+        result.name = String::from("return");
+        token_vec.remove(0);
+        result.exp = Some(parse_assign(token_vec));
+    }
+    else if (tok.name == "Keyword") {
+        result.name = String::from("declare");
+        result.decl = Some(parse_declaration(token_vec));
+    }
+    else {
+        result.name = String::from("exp");
+        result.exp = Some(parse_assign(token_vec));
+    }
 
     tok = get_next_token(token_vec);
+
     assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
     
     result
 }
 
+pub fn parse_declaration(token_vec : &mut Vec<lexer::Token>) -> Declaration {
+    let mut result : Declaration = Declaration::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.name == "Keyword" && 
+            (tok.value == "int"), 
+            "Invalid declaration, saw: {}", tok.value);
+
+    result.var_type = tok.value;
+    token_vec.remove(0);
+    tok = get_next_token(token_vec);
+    result.var = Variable {var_name : tok.value.clone()};
+
+    tok = peek_next_token(token_vec);
+    if (tok.value == "=" && tok.name == "AssignOp") {
+        token_vec.remove(0);
+        result.exp = parse_assign(token_vec);
+    }
+    else {
+        // Default to zero.
+        result.exp = Assignment::set_to_zero();
+    }
+
+    result
+}
+
+pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
+    let mut result : Assignment = Assignment::new();
+    let tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+        "Invalid assignment, saw: {}", tok.value);
+    
+    let mut next_tok = peek_two_tokens(&token_vec);
+
+    if (tok.name == "Identifier" && next_tok.value == "=") {
+
+        result.var = Some(Variable {var_name : tok.value.clone()});
+        while (next_tok.value == "=") {
+
+            token_vec.remove(0);
+            token_vec.remove(0);
+
+            result.exp = Some(parse_or_exp(token_vec));
+            
+            result.assign = Some(Box::new(Assignment {
+                var : result.var.clone(),
+                assign : result.assign.clone(),
+                exp : result.exp.clone(),
+            }));
+
+            result.var = None;
+            result.exp = None;
+
+            next_tok = peek_next_token(token_vec);
+        }
+    }
+    else {
+        // Not an assignment, move on.
+        result.exp = Some(parse_or_exp(token_vec));
+    }
+
+    result
+}
+
 pub fn valid_unary(s : String) -> bool {
-    let op = vec!["!", "~", "-", "+"];
+    let op = vec!["!", "~", "-", "+"]; // Cheated, "+" is binary but can be used as unary (adds 0) 
     return op.contains(&(s.as_str()));
 }
 
 pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
     let mut result : OrExpression = OrExpression::new();
-
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           valid_unary(tok.value), "Invalid or_exp.");
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+           "Invalid or_exp, saw \"{}\" : \"{}\"...", tok.name, tok.value);
 
     result.left_and_exp = Some(Box::new(parse_and_exp(token_vec)));
     
@@ -764,12 +965,12 @@ pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
 
 pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
     let mut result : AndExpression = AndExpression::new();
-
-   
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           valid_unary(tok.value), "Invalid and_exp.");
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier", "Invalid and_exp, saw {}.", tok.value);
 
     result.left_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
     
@@ -798,11 +999,13 @@ pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
 
 pub fn parse_equal_exp(token_vec : &mut Vec<lexer::Token>) -> EqualityExp {
     let mut result : EqualityExp = EqualityExp::new();
-
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           valid_unary(tok.value), "Invalid equal_exp.");
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+           "Invalid equal_exp: {}.", tok.value);
 
     result.left_relation_exp = Some(Box::new(parse_rel_exp(token_vec)));
     
@@ -832,11 +1035,13 @@ pub fn parse_equal_exp(token_vec : &mut Vec<lexer::Token>) -> EqualityExp {
 
 pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
     let mut result : RelationalExp = RelationalExp::new();
-
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           valid_unary(tok.value), "Invalid rel_exp.");
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+           "Invalid rel_exp: {}.", tok.value);
 
     result.left_add_exp = Some(Box::new(parse_add_exp(token_vec)));
     
@@ -868,11 +1073,13 @@ pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
 
 pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
     let mut result : AdditiveExp = AdditiveExp::new();
-
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           valid_unary(tok.value.clone()), "Invalid add_exp.");
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier", 
+           "Invalid add_exp: {}.", tok.value);
 
     // Edge case for if there is no value to the right of the addition:
     result.left_term = Some(Box::new(parse_term(token_vec)));
@@ -938,19 +1145,15 @@ pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
 
 pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
     let mut result : Term = Term::new();
-
-   // println!("GENERATING TERM");
-   
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
-           valid_unary(tok.value), "Invalid term.");
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier", "Invalid term: {}.", tok.value);
 
-    //println!("LEFT FACTOR TOKEN: {}", tok.value);
     result.left_factor = Some(Box::new(parse_factor(token_vec)));
-    
     tok = peek_next_token(token_vec);
-    //println!("TOK PEEK IN TERM: {}", tok.value);
 
     while (tok.value == "*" || tok.value == "/") {
         result.op = String::from(tok.value.clone());
@@ -968,10 +1171,8 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
         //println!("RIGHT FACTOR TOKEN: {}", tok.value.clone());
         result.right_factor = Some(Box::new(parse_factor(token_vec)));
 
-       tok = peek_next_token(token_vec);
+        tok = peek_next_token(token_vec);
          
-        //println!("IN */, NEXT IS: {}", tok.value);
-        
         result.left_term = Some(Box::new(Term {
             op : result.op.clone(),
             left_term : result.left_term.clone(),
@@ -982,10 +1183,6 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
         result.left_factor = None;
         result.right_factor = None;            
         result.op = String::new();
-
-        //print!("RESULTING TERM: ");
-        //print_term(&result);
-        //println!("");
     }
 
     result
@@ -994,26 +1191,26 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
 
 pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
     let mut result : Factor = Factor::new();
-
-    //println!("GENERATING FACTOR.");
-
     let mut tok : lexer::Token = peek_next_token(token_vec);
     
     if (tok.value == "(") {
-        //println!("FOUND (");
         token_vec.remove(0);
-        result.exp = Some(Box::new(parse_or_exp(token_vec)));
+        result.exp = Some(Box::new(parse_assign(token_vec)));
         tok = get_next_token(token_vec);
         assert!(tok.value==")", "Missing closing paren, saw {}.", tok.value);
-        //println!("FOUND )");
     }
     else if (String::from("~!-").contains(tok.value.as_str())) {
         result.unary = Some(Box::new(parse_unary(token_vec)));
     }
     else if (tok.name == "Num") {
-        //println!("GENERATED NUM: {}", tok.value);  
-        result.val = Some(tok.value.parse::<i32>().unwrap());
+        result.val = Some(tok.value.clone().parse::<i32>().unwrap());
         token_vec.remove(0);
+        //println!("Found num: {}", tok.value);
+    }
+    else if (tok.name == "Identifier") {
+        result.var = Some(Variable { var_name : tok.value.clone() });
+        token_vec.remove(0);
+        //println!("Found identifier: {}", tok.value);
     }
 
     result
@@ -1021,15 +1218,11 @@ pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
 
 pub fn parse_unary(token_vec : &mut Vec<lexer::Token>) -> Unary {
     let mut result : Unary = Unary::new();
-
-    //println!("GENERATING UNARY");
-    
     let tok : lexer::Token = get_option_token(token_vec.first().cloned());
+
     result.op = String::from(tok.value);
     token_vec.remove(0);
     result.right_fact = Some(Box::new(parse_factor(token_vec)));
-
-    //println!("Generated unary: {}", result.op);
 
     result
 }

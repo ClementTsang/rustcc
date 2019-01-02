@@ -3,10 +3,9 @@
 main:
     pushl   %ebp # Opening function
     movl    %esp, %ebp
-    movl    $42, %eax # Constant integer reference
-    cmpl    $0, %eax # Generating !
-    movl    $0, %eax
-    sete    %al
+    movl    $2, %eax # Constant integer reference
+    pushl   %eax
+    movl    $0, %eax # Default return value
     movl    %ebp, %esp # Close function
     popl    %ebp
     ret

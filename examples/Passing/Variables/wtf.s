@@ -3,13 +3,12 @@
 main:
     pushl   %ebp # Opening function
     movl    %esp, %ebp
-    movl    $5, %eax # Constant integer reference
-    pushl    %eax # Generating eq
+    movl    $1, %eax # Constant integer reference
+    pushl   %eax
     movl    $6, %eax # Constant integer reference
-    popl     %ecx
-    cmpl     %eax, %ecx
-    movl     %ecx, %eax
-    setne    %al # End !=
+    movl    %eax, -4(%ebp) # Assigning new value
+    pushl   %eax
+    movl    -4(%ebp), %eax # Variable reference
     movl    %ebp, %esp # Close function
     popl    %ebp
     ret

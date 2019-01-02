@@ -1,6 +1,10 @@
     .globl    main
     .type main, @function
 main:
-    movl    $0, %eax
-    not     %eax
+    pushl   %ebp # Opening function
+    movl    %esp, %ebp
+    movl    $0, %eax # Constant integer reference
+    not     %eax # Generating ~
+    movl    %ebp, %esp # Close function
+    popl    %ebp
     ret

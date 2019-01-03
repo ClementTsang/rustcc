@@ -55,8 +55,29 @@ pub struct OrExpression {
 pub struct AndExpression {
     pub op : String,
     pub left_exp : Option<Box<AndExpression>>,
-    pub left_equal_exp : Option<Box<EqualityExp>>,
-    pub right_equal_exp : Option<Box<EqualityExp>>,
+    pub left_child : Option<Box<BitOr>>,
+    pub right_child : Option<Box<BitOr>>,
+}
+
+pub struct BitOr {
+    pub op : String,
+    pub left_exp : Option<Box<BitOr>>,
+    pub left_child : Option<Box<BitXor>>,
+    pub right_child : Option<Box<BitXor>>,
+}
+
+pub struct BitXor {
+    pub op : String,
+    pub left_exp : Option<Box<BitXor>>,
+    pub left_child : Option<Box<BitAnd>>,
+    pub right_child : Option<Box<BitAnd>>,
+}
+
+pub struct BitAnd {
+    pub op : String,
+    pub left_exp : Option<Box<BitAnd>>,
+    pub left_child : Option<Box<EqualityExp>>,
+    pub right_child : Option<Box<EqualityExp>>,
 }
 
 pub struct EqualityExp {
@@ -69,8 +90,15 @@ pub struct EqualityExp {
 pub struct RelationalExp {
     pub op : String,
     pub left_exp : Option<Box<RelationalExp>>,
-    pub left_add_exp : Option<Box<AdditiveExp>>,
-    pub right_add_exp : Option<Box<AdditiveExp>>,
+    pub left_child : Option<Box<BitShift>>,
+    pub right_child : Option<Box<BitShift>>,
+}
+
+pub struct BitShift {
+    pub op : String,
+    pub left_exp : Option<Box<BitShift>>,
+    pub left_child : Option<Box<AdditiveExp>>,
+    pub right_child : Option<Box<AdditiveExp>>,
 }
 
 pub struct AdditiveExp {
@@ -138,49 +166,11 @@ impl Assignment {
             exp : None,
         }
     }
-
-    // This is horrible.
     pub fn set_to_zero() -> Assignment {
         Assignment {
             var : None,
             assign : None,
-            exp : Some(OrExpression {
-                op : String::new(),
-                left_exp : None,
-                left_and_exp : Some(Box::new(AndExpression{
-                    op : String::new(),
-                    left_exp : None,
-                    left_equal_exp : Some(Box::new(EqualityExp{
-                        op : String::new(),
-                        left_exp : None,
-                        left_relation_exp : Some(Box::new(RelationalExp {
-                            op : String::new(),
-                            left_exp : None,
-                            left_add_exp : Some(Box::new(AdditiveExp {
-                                op : String::new(),
-                                left_exp : None,
-                                left_term : Some(Box::new(Term {
-                                    op : String::new(),
-                                    left_term : None,
-                                    left_factor : Some(Box::new(Factor {
-                                        op : String::new(),
-                                        unary : None,
-                                        exp : None,
-                                        val : Some(0),
-                                        var : None,
-                                    })),
-                                    right_factor : None,
-                                })),
-                                right_term : None,
-                            })),
-                            right_add_exp : None,
-                        })),
-                        right_relation_exp : None,
-                    })),
-                    right_equal_exp : None,
-                })),
-                right_and_exp : None,
-            }),
+            exp : Some(OrExpression::set_to_zero()),
         }
     }
 }
@@ -193,6 +183,7 @@ impl Declaration {
             var_type : String::new(),
         }
     }
+    
 }
 
 impl Variable {
@@ -212,6 +203,15 @@ impl OrExpression {
             right_and_exp : None,
         }
     }
+
+    pub fn set_to_zero() -> OrExpression {
+        OrExpression {
+            op : String::new(),
+            left_exp : None,
+            left_and_exp : Some(Box::new(AndExpression::set_to_zero())),
+            right_and_exp : None,
+        }
+    }
 }
 
 impl AndExpression {
@@ -219,8 +219,77 @@ impl AndExpression {
         AndExpression {
             op : String::new(),
             left_exp : None,
-            left_equal_exp : None,
-            right_equal_exp : None,
+            left_child : None,
+            right_child : None,
+        }
+    }
+
+    pub fn set_to_zero() -> AndExpression {
+        AndExpression {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitOr::set_to_zero())),
+            right_child : None,
+        }
+    }
+}
+
+impl BitOr {
+    pub fn new() -> BitOr {
+        BitOr {
+            op : String::new(),
+            left_exp : None,
+            left_child : None,
+            right_child: None,
+        }
+    }
+
+    pub fn set_to_zero() -> BitOr {
+        BitOr {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitXor::set_to_zero())),
+            right_child: None,
+        }
+    }
+}
+
+impl BitXor {
+    pub fn new() -> BitXor {
+        BitXor {
+            op : String::new(),
+            left_exp : None,
+            left_child : None,
+            right_child: None,
+        }
+    }
+
+    pub fn set_to_zero() -> BitXor {
+        BitXor {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitAnd::set_to_zero())),
+            right_child: None,
+        }
+    }
+}
+
+impl BitAnd {
+    pub fn new() -> BitAnd {
+        BitAnd {
+            op : String::new(),
+            left_exp : None,
+            left_child : None,
+            right_child: None,
+        }
+    }
+
+    pub fn set_to_zero() -> BitAnd {
+        BitAnd {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(EqualityExp::set_to_zero())),
+            right_child: None,
         }
     }
 }
@@ -234,6 +303,15 @@ impl EqualityExp {
             right_relation_exp : None,
         }
     }
+
+    pub fn set_to_zero() -> EqualityExp {
+        EqualityExp {
+            op : String::new(),
+            left_exp : None,
+            left_relation_exp : Some(Box::new(RelationalExp::set_to_zero())),
+            right_relation_exp : None,
+        }
+    }
 }
 
 impl RelationalExp {
@@ -241,14 +319,52 @@ impl RelationalExp {
         RelationalExp {
             op : String::new(),
             left_exp : None,
-            left_add_exp : None,
-            right_add_exp : None,
+            left_child : None,
+            right_child : None,
+        }
+    }
+
+    pub fn set_to_zero() -> RelationalExp {
+        RelationalExp {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitShift::set_to_zero())),
+            right_child : None,
+        }
+    }
+}
+
+impl BitShift {
+    pub fn new() -> BitShift {
+        BitShift {
+            op : String::new(),
+            left_exp : None,
+            left_child : None,
+            right_child: None,
+        }
+    }
+
+    pub fn set_to_zero() -> BitShift {
+        BitShift {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(AdditiveExp::set_to_zero())),
+            right_child: None,
         }
     }
 }
 
 impl AdditiveExp {
     pub fn new() -> AdditiveExp {
+        AdditiveExp {
+            op : String::new(),
+            left_exp : None,
+            left_term : None,
+            right_term : None,
+        }
+    }
+
+    pub fn set_to_zero() -> AdditiveExp {
         AdditiveExp {
             op : String::new(),
             left_exp : None,
@@ -267,6 +383,15 @@ impl Term {
             right_factor : None,
         }
     }
+
+    pub fn set_to_zero() -> Term {
+        Term {
+            op: String::new(),
+            left_term : None,
+            left_factor : Some(Box::new(Factor::set_to_zero())),
+            right_factor : None,
+        }
+    }
 }
 
 impl Factor { 
@@ -276,6 +401,16 @@ impl Factor {
             unary : None,
             exp: None,
             val : None,
+            var : None,
+        }
+    }
+
+    pub fn set_to_zero() -> Factor {
+        Factor {
+            op : String::new(),
+            unary : None,
+            exp: None,
+            val : Some(0),
             var : None,
         }
     }
@@ -334,8 +469,41 @@ impl Clone for AndExpression {
         AndExpression {
             op : self.op.clone(),
             left_exp : self.left_exp.clone(),
-            left_equal_exp : self.left_equal_exp.clone(),
-            right_equal_exp : self.right_equal_exp.clone(),
+            left_child : self.left_child.clone(),
+            right_child : self.right_child.clone(),
+        }
+    }
+}
+
+impl Clone for BitOr {
+    fn clone(&self) -> Self {
+        BitOr {
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_child : self.left_child.clone(),
+            right_child : self.right_child.clone(),
+        }
+    }
+}
+
+impl Clone for BitXor {
+    fn clone(&self) -> Self {
+        BitXor {
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_child : self.left_child.clone(),
+            right_child : self.right_child.clone(),
+        }
+    }
+}
+
+impl Clone for BitAnd {
+    fn clone(&self) -> Self {
+        BitAnd {
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_child : self.left_child.clone(),
+            right_child : self.right_child.clone(),
         }
     }
 }
@@ -351,14 +519,24 @@ impl Clone for EqualityExp {
     }
 }
 
+impl Clone for BitShift {
+    fn clone(&self) -> Self {
+        BitShift {
+            op : self.op.clone(),
+            left_exp : self.left_exp.clone(),
+            left_child : self.left_child.clone(),
+            right_child : self.right_child.clone(),
+        }
+    }
+}
 
 impl Clone for RelationalExp {
     fn clone(&self) -> Self {
         RelationalExp {
             op : self.op.clone(),
             left_exp : self.left_exp.clone(),
-            left_add_exp : self.left_add_exp.clone(),
-            right_add_exp : self.right_add_exp.clone(),
+            left_child : self.left_child.clone(),
+            right_child : self.right_child.clone(),
         }
     }
 }
@@ -516,12 +694,12 @@ pub fn print_or (exp : &OrExpression) {
 pub fn print_and (exp : &AndExpression) {
     match exp.left_exp.clone() {
         Some(lexp) => {
-            match exp.right_equal_exp.clone() {
+            match exp.right_child.clone() {
                 Some(r_child) => {
                     print!("(");
                     print_and(&*lexp);
                     print!(" {} ", exp.op);
-                    print_eq(&*r_child);
+                    print_bit_or(&*r_child);
                     print!(")");
                 },
                 None => {
@@ -530,9 +708,126 @@ pub fn print_and (exp : &AndExpression) {
             }
         },
         None => {
-            match exp.left_equal_exp.clone() {
+            match exp.left_child.clone() {
                     Some(lchild) => {
-                        match exp.right_equal_exp.clone() {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_bit_or(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_bit_or(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_bit_or(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
+
+pub fn print_bit_or (exp : &BitOr) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_bit_or(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_bit_xor(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_bit_or(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_bit_xor(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_bit_xor(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_bit_xor(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
+
+pub fn print_bit_xor (exp : &BitXor) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_bit_xor(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_bit_and(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_bit_xor(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_bit_and(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_bit_and(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_bit_and(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
+
+pub fn print_bit_and (exp : &BitAnd) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_bit_and(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_eq(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_bit_and(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
                             Some(rchild) => {
                                 print!("(");
                                 print_eq(&*lchild);
@@ -594,12 +889,12 @@ pub fn print_eq(exp : &EqualityExp) {
 pub fn print_rel(exp : &RelationalExp) {
     match exp.left_exp.clone() {
         Some(lexp) => {
-            match exp.right_add_exp.clone() {
+            match exp.right_child.clone() {
                 Some(r_child) => {
                     print!("(");
                     print_rel(&*lexp);
                     print!(" {} ", exp.op);
-                    print_add(&*r_child);
+                    print_bit_shift(&*r_child);
                     print!(")");
                 },
                 None => {
@@ -608,9 +903,48 @@ pub fn print_rel(exp : &RelationalExp) {
             }
         },
         None => {
-            match exp.left_add_exp.clone() {
+            match exp.left_child.clone() {
                     Some(lchild) => {
-                        match exp.right_add_exp.clone() {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                print!("(");
+                                print_bit_shift(&*lchild);
+                                print!(" {} ", exp.op);
+                                print_bit_shift(&(*rchild));
+                                print!(")");
+                            },
+                            None => {
+                                print_bit_shift(&*lchild);
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+}
+
+pub fn print_bit_shift(exp : &BitShift) {
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(r_child) => {
+                    print!("(");
+                    print_bit_shift(&*lexp);
+                    print!(" {} ", exp.op);
+                    print_add(&*r_child);
+                    print!(")");
+                },
+                None => {
+                    print_bit_shift(&*lexp);
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
                             Some(rchild) => {
                                 print!("(");
                                 print_add(&*lchild);
@@ -972,7 +1306,7 @@ pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
            valid_unary(tok.value.clone()) ||
            tok.name == "Identifier", "Invalid and_exp, saw {}.", tok.value);
 
-    result.left_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
+    result.left_child = Some(Box::new(parse_bitwise_or(token_vec)));
     
     tok = peek_next_token(token_vec);
 
@@ -980,20 +1314,131 @@ pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
         result.op = String::from(tok.value.clone());
         get_next_token(token_vec);
 
-        result.right_equal_exp = Some(Box::new(parse_equal_exp(token_vec)));
+        result.right_child = Some(Box::new(parse_bitwise_or(token_vec)));
         tok = peek_next_token(token_vec);
         
         result.left_exp = Some(Box::new(AndExpression {
             op : result.op.clone(),
             left_exp : result.left_exp.clone(),
-            left_equal_exp : result.left_equal_exp.clone(),
-            right_equal_exp : result.right_equal_exp.clone(),
+            left_child : result.left_child.clone(),
+            right_child : result.right_child.clone(),
         }));
 
-        result.left_equal_exp = None;
-        result.right_equal_exp = None;            
+        result.left_child = None;
+        result.right_child = None;            
         result.op = String::new();
     }
+    result
+}
+
+pub fn parse_bitwise_or(token_vec : &mut Vec<lexer::Token>) -> BitOr {
+    let mut result : BitOr = BitOr::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+           "Invalid rel_exp: {}.", tok.value);
+
+    result.left_child = Some(Box::new(parse_bitwise_xor(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == "|") {
+        result.op = String::from(tok.value.clone());
+        get_next_token(token_vec);
+
+        result.right_child = Some(Box::new(parse_bitwise_xor(token_vec)));
+        tok = peek_next_token(token_vec);
+        
+        result.left_exp = Some(Box::new(BitOr {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_child : result.left_child.clone(),
+            right_child : result.right_child.clone(),
+        }));
+
+        result.left_child = None;
+        result.right_child = None;            
+        result.op = String::new();
+    }
+
+
+    result
+}
+
+pub fn parse_bitwise_xor(token_vec : &mut Vec<lexer::Token>) -> BitXor {
+    let mut result : BitXor = BitXor::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+           "Invalid rel_exp: {}.", tok.value);
+
+    result.left_child = Some(Box::new(parse_bitwise_and(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == "^") {
+        result.op = String::from(tok.value.clone());
+        get_next_token(token_vec);
+
+        result.right_child = Some(Box::new(parse_bitwise_and(token_vec)));
+        tok = peek_next_token(token_vec);
+        
+        result.left_exp = Some(Box::new(BitXor {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_child : result.left_child.clone(),
+            right_child : result.right_child.clone(),
+        }));
+
+        result.left_child = None;
+        result.right_child = None;            
+        result.op = String::new();
+    }
+
+
+    result
+}
+
+pub fn parse_bitwise_and(token_vec : &mut Vec<lexer::Token>) -> BitAnd {
+    let mut result : BitAnd = BitAnd::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+           "Invalid rel_exp: {}.", tok.value);
+
+    result.left_child = Some(Box::new(parse_equal_exp(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == "&") {
+        result.op = String::from(tok.value.clone());
+        get_next_token(token_vec);
+
+        result.right_child = Some(Box::new(parse_equal_exp(token_vec)));
+        tok = peek_next_token(token_vec);
+        
+        result.left_exp = Some(Box::new(BitAnd {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_child : result.left_child.clone(),
+            right_child : result.right_child.clone(),
+        }));
+
+        result.left_child = None;
+        result.right_child = None;            
+        result.op = String::new();
+    }
+
+
     result
 }
 
@@ -1043,7 +1488,7 @@ pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
            tok.name == "Identifier",
            "Invalid rel_exp: {}.", tok.value);
 
-    result.left_add_exp = Some(Box::new(parse_add_exp(token_vec)));
+    result.left_child = Some(Box::new(parse_bitwise_shift(token_vec)));
     
     tok = peek_next_token(token_vec);
 
@@ -1051,18 +1496,55 @@ pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
         result.op = String::from(tok.value.clone());
         get_next_token(token_vec);
 
-        result.right_add_exp = Some(Box::new(parse_add_exp(token_vec)));
+        result.right_child = Some(Box::new(parse_bitwise_shift(token_vec)));
         tok = peek_next_token(token_vec);
         
         result.left_exp = Some(Box::new(RelationalExp {
             op : result.op.clone(),
             left_exp : result.left_exp.clone(),
-            left_add_exp : result.left_add_exp.clone(),
-            right_add_exp : result.right_add_exp.clone(),
+            left_child : result.left_child.clone(),
+            right_child : result.right_child.clone(),
         }));
 
-        result.left_add_exp = None;
-        result.right_add_exp = None;            
+        result.left_child = None;
+        result.right_child = None;            
+        result.op = String::new();
+    }
+
+
+    result
+}
+
+pub fn parse_bitwise_shift(token_vec : &mut Vec<lexer::Token>) -> BitShift {
+    let mut result : BitShift = BitShift::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.name == "Num" ||
+           tok.value == "(" ||
+           valid_unary(tok.value.clone()) ||
+           tok.name == "Identifier",
+           "Invalid rel_exp: {}.", tok.value);
+
+    result.left_child = Some(Box::new(parse_add_exp(token_vec)));
+    
+    tok = peek_next_token(token_vec);
+
+    while (tok.value == ">>" || tok.value == "<<") {
+        result.op = String::from(tok.value.clone());
+        get_next_token(token_vec);
+
+        result.right_child = Some(Box::new(parse_add_exp(token_vec)));
+        tok = peek_next_token(token_vec);
+        
+        result.left_exp = Some(Box::new(BitShift {
+            op : result.op.clone(),
+            left_exp : result.left_exp.clone(),
+            left_child : result.left_child.clone(),
+            right_child : result.right_child.clone(),
+        }));
+
+        result.left_child = None;
+        result.right_child = None;            
         result.op = String::new();
     }
 
@@ -1155,20 +1637,17 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
     result.left_factor = Some(Box::new(parse_factor(token_vec)));
     tok = peek_next_token(token_vec);
 
-    while (tok.value == "*" || tok.value == "/") {
+    while (tok.value == "*" || tok.value == "/" || tok.value == "%") {
         result.op = String::from(tok.value.clone());
-        //println!("Set expr: {}", result.op);
         tok = get_next_token(token_vec);
        
-         if (tok.value == "/" && peek_next_token(token_vec).name == "Num") {
+        if (tok.value == "/" && peek_next_token(token_vec).name == "Num") {
             if (peek_next_token(token_vec).value.parse::<i32>().unwrap() == 0) {
                 println!("Tried dividing by zero.");
                 std::process::exit(1);
             }
         }
         
-
-        //println!("RIGHT FACTOR TOKEN: {}", tok.value.clone());
         result.right_factor = Some(Box::new(parse_factor(token_vec)));
 
         tok = peek_next_token(token_vec);

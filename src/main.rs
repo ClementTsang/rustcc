@@ -176,11 +176,11 @@ fn generate_or_expr(exp : &parser::OrExpression, var_map : &mut HashMap<String, 
     result
 }
 
-fn generate_and_rchild(expr : &parser::AndExpression, rchild : &parser::EqualityExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+fn generate_and_rchild(expr : &parser::AndExpression, rchild : &parser::BitOr, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
 
     result.push_str("    pushl   %eax # Generating &&\n");
-    result.push_str(generate_eq_expr(rchild, var_map, stack_index).as_str());
+    result.push_str(generate_bit_or(rchild, var_map, stack_index).as_str());
     result.push_str("    popl    %ecx\n");
     result.push_str("    cmpl    $0, %ecx\n");
     result.push_str("    setne   %cl\n");
@@ -197,7 +197,7 @@ fn generate_and_expr(exp : &parser::AndExpression, var_map : &mut HashMap<String
    
     match exp.left_exp.clone() {
         Some(lexp) => {
-            match exp.right_equal_exp.clone() {
+            match exp.right_child.clone() {
                 Some(rchild) => {
                     result.push_str(generate_and_expr(&*lexp, var_map, stack_index).as_str());
                     result.push_str(generate_and_rchild(exp, &*rchild, var_map, stack_index).as_str());
@@ -208,12 +208,156 @@ fn generate_and_expr(exp : &parser::AndExpression, var_map : &mut HashMap<String
             }
         },
         None => {
-            match exp.left_equal_exp.clone() {
+            match exp.left_child.clone() {
                     Some(lchild) => {
-                        match exp.right_equal_exp.clone() {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                result.push_str(generate_bit_or(&*lchild, var_map, stack_index).as_str());
+                                result.push_str(generate_and_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                            },
+                            None => {
+                                result.push_str(generate_bit_or(&*lchild, var_map, stack_index).as_str());
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+
+    result
+}
+
+fn generate_bit_or_rchild(expr : &parser::BitOr, rchild : &parser::BitXor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+
+    result.push_str("    pushl   %eax # Generating |\n");
+    result.push_str(generate_bit_xor(rchild, var_map, stack_index).as_str());
+    result.push_str("    popl    %ecx\n");
+    result.push_str("    orl     %ecx, %eax # End |\n");
+
+    result
+}
+
+fn generate_bit_or(exp : &parser::BitOr, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+   
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(rchild) => {
+                    result.push_str(generate_bit_or(&*lexp, var_map, stack_index).as_str());
+                    result.push_str(generate_bit_or_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                },
+                None => {
+                    result.push_str(generate_bit_or(&*lexp, var_map, stack_index).as_str());
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                result.push_str(generate_bit_xor(&*lchild, var_map, stack_index).as_str());
+                                result.push_str(generate_bit_or_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                            },
+                            None => {
+                                result.push_str(generate_bit_xor(&*lchild, var_map, stack_index).as_str());
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+
+    result
+}
+
+fn generate_bit_xor_rchild(expr : &parser::BitXor, rchild : &parser::BitAnd, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+
+    result.push_str("    pushl   %eax # Generating ^\n");
+    result.push_str(generate_bit_and(rchild, var_map, stack_index).as_str());
+    result.push_str("    popl    %ecx\n");
+    result.push_str("    xorl    %ecx, %eax # End ^\n");
+
+    result
+}
+
+fn generate_bit_xor(exp : &parser::BitXor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+   
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(rchild) => {
+                    result.push_str(generate_bit_xor(&*lexp, var_map, stack_index).as_str());
+                    result.push_str(generate_bit_xor_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                },
+                None => {
+                    result.push_str(generate_bit_xor(&*lexp, var_map, stack_index).as_str());
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                result.push_str(generate_bit_and(&*lchild, var_map, stack_index).as_str());
+                                result.push_str(generate_bit_xor_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                            },
+                            None => {
+                                result.push_str(generate_bit_and(&*lchild, var_map, stack_index).as_str());
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+
+    result
+}
+
+fn generate_bit_and_rchild(expr : &parser::BitAnd, rchild : &parser::EqualityExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+
+    result.push_str("    pushl   %eax # Generating &\n");
+    result.push_str(generate_eq_expr(rchild, var_map, stack_index).as_str());
+    result.push_str("    popl    %ecx\n");
+    result.push_str("    andl     %ecx, %eax # End &\n");
+
+    result
+}
+
+fn generate_bit_and(exp : &parser::BitAnd, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+   
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(rchild) => {
+                    result.push_str(generate_bit_and(&*lexp, var_map, stack_index).as_str());
+                    result.push_str(generate_bit_and_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                },
+                None => {
+                    result.push_str(generate_bit_and(&*lexp, var_map, stack_index).as_str());
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
                             Some(rchild) => {
                                 result.push_str(generate_eq_expr(&*lchild, var_map, stack_index).as_str());
-                                result.push_str(generate_and_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                                result.push_str(generate_bit_and_rchild(exp, &*rchild, var_map, stack_index).as_str());
                             },
                             None => {
                                 result.push_str(generate_eq_expr(&*lchild, var_map, stack_index).as_str());
@@ -291,11 +435,11 @@ fn generate_eq_expr(exp : &parser::EqualityExp, var_map : &mut HashMap<String, i
     result
 }
 
-fn generate_rel_rchild(expr : &parser::RelationalExp, rchild : &parser::AdditiveExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+fn generate_rel_rchild(expr : &parser::RelationalExp, rchild : &parser::BitShift, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
 
     result.push_str(format!("    pushl    %eax # Generating rel: {}\n", expr.op.as_str()).as_str());
-    result.push_str(generate_add_expr(&*rchild, var_map, stack_index).as_str());
+    result.push_str(generate_bit_shift(&*rchild, var_map, stack_index).as_str());
     result.push_str("    popl     %ecx\n");
     result.push_str("    cmpl     %eax, %ecx\n");
     result.push_str("    movl     %ecx, %eax\n");
@@ -327,7 +471,7 @@ fn generate_rel_expr(exp : &parser::RelationalExp, var_map : &mut HashMap<String
    
     match exp.left_exp.clone() {
         Some(lexp) => {
-            match exp.right_add_exp.clone() {
+            match exp.right_child.clone() {
                 Some(rchild) => {
                     result.push_str(generate_rel_expr(&*lexp, var_map, stack_index).as_str());
                     result.push_str(generate_rel_rchild(exp, &*rchild, var_map, stack_index).as_str());
@@ -338,12 +482,74 @@ fn generate_rel_expr(exp : &parser::RelationalExp, var_map : &mut HashMap<String
             }
         },
         None => {
-            match exp.left_add_exp.clone() {
+            match exp.left_child.clone() {
                     Some(lchild) => {
-                        match exp.right_add_exp.clone() {
+                        match exp.right_child.clone() {
+                            Some(rchild) => {
+                                result.push_str(generate_bit_shift(&*lchild, var_map, stack_index).as_str());
+                                result.push_str(generate_rel_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                            },
+                            None => {
+                                result.push_str(generate_bit_shift(&*lchild, var_map, stack_index).as_str());
+                            },
+                        }
+                    },
+                    None => {
+                    },
+                }               
+        },
+    }
+
+    result
+}
+
+fn generate_bit_shift_rchild(expr : &parser::BitShift, rchild : &parser::AdditiveExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+
+    result.push_str(format!("    pushl   %eax # Generating rel: {}\n", expr.op.as_str()).as_str());
+    result.push_str(generate_add_expr(&*rchild, var_map, stack_index).as_str());
+    result.push_str("    movl    %eax, %ecx\n");
+    result.push_str("    popl    %eax\n");
+
+    match expr.op.as_str() {
+        "<<" => {
+            result.push_str("    sall    %cl, %eax # End <<\n");
+        },
+        ">>" => {
+            result.push_str("    sarl    %cl, %eax # End >>\n");
+        },
+        _ => {
+            println!("Found an unwritten binary(BitShift): {}", expr.op.as_str());
+            std::process::exit(1);
+        },
+    }
+    
+
+    result
+}
+
+fn generate_bit_shift(exp : &parser::BitShift, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+   
+    match exp.left_exp.clone() {
+        Some(lexp) => {
+            match exp.right_child.clone() {
+                Some(rchild) => {
+                    result.push_str(generate_bit_shift(&*lexp, var_map, stack_index).as_str());
+                    result.push_str(generate_bit_shift_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                },
+                None => {
+                    result.push_str(generate_bit_shift(&*lexp, var_map, stack_index).as_str());
+                },
+            }
+        },
+        None => {
+            match exp.left_child.clone() {
+                    Some(lchild) => {
+                        match exp.right_child.clone() {
                             Some(rchild) => {
                                 result.push_str(generate_add_expr(&*lchild, var_map, stack_index).as_str());
-                                result.push_str(generate_rel_rchild(exp, &*rchild, var_map, stack_index).as_str());
+                                result.push_str(generate_bit_shift_rchild(exp, &*rchild, var_map, stack_index).as_str());
                             },
                             None => {
                                 result.push_str(generate_add_expr(&*lchild, var_map, stack_index).as_str());
@@ -371,7 +577,7 @@ fn generate_add_expr_rterm(expr : &parser::AdditiveExp, rterm : &parser::Term, v
             result.push_str("    subl    %ecx, %eax # End -\n");
         },
         "+" => {
-            result.push_str("    push    %eax # Generating binary (+)\n");
+            result.push_str("    pushl   %eax # Generating binary (+)\n");
             result.push_str(generate_term(&*rterm, var_map, stack_index).as_str());
             result.push_str("    popl    %ecx\n");
             result.push_str("    addl    %ecx, %eax # End +\n");
@@ -427,20 +633,30 @@ fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::Factor, var_ma
     let mut result = String::new();
     match term.op.as_str() {
         "*" => {
-            result.push_str("    pushl   %eax # Generating binary (*)\n");
+            result.push_str("    pushl  %eax # Generating binary (*)\n");
             result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
-            result.push_str("    popl    %ecx\n");
-            result.push_str("    imul    %ecx, %eax # End *\n");
+            result.push_str("    popl   %ecx\n");
+            result.push_str("    imul   %ecx, %eax # End *\n");
         },
         "/" => {
-            result.push_str("    pushl   %eax # Generating binary (/)\n");
+            result.push_str("    pushl  %eax # Generating binary (/)\n");
             result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
             result.push_str("    pushl  %eax\n");
             result.push_str("    popl   %ecx\n");
             result.push_str("    popl   %eax\n");
-            result.push_str("    movl    $0, %edx\n");  //Zero out edx
-            result.push_str("    idivl   %ecx # End /\n"); //ecx is divisor
+            result.push_str("    movl   $0, %edx\n");  //Zero out edx
+            result.push_str("    idivl  %ecx # End /\n"); //ecx is divisor
 
+        },
+        "%" => {
+            result.push_str("    pushl  %eax # Generating binary (%)\n");
+            result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
+            result.push_str("    pushl  %eax\n");
+            result.push_str("    popl   %ecx\n");
+            result.push_str("    popl   %eax\n");
+            result.push_str("    movl   $0, %edx\n");  //Zero out edx
+            result.push_str("    idivl  %ecx # End %\n");
+            result.push_str("    movl   %edx, %eax # End %\n"); //Move remainder to eax
         },
         _ => {
             println!("Found an unwritten Binary(Term): {}", term.op.as_str());

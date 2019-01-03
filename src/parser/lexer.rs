@@ -44,17 +44,12 @@ pub fn is_punctuation (c : char) -> bool {
 }
 
 pub fn is_op (c : char) -> bool {
-    let op = "-~!+*/";
+    let op = "-~!+*/%&|^";
     op.contains(c)
 }
 
 pub fn is_unary (c : char) -> bool {
     let op = "-~!";
-    op.contains(c)
-}
-
-pub fn is_binary (c : char) -> bool {
-    let op = "+*/-%&|^";
     op.contains(c)
 }
 

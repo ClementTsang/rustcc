@@ -54,17 +54,17 @@ pub fn is_unary (c : char) -> bool {
 }
 
 pub fn is_binary (c : char) -> bool {
-    let op = "+*/-";
+    let op = "+*/-%&|^";
     op.contains(c)
 }
 
 pub fn is_multi_check (c : char) -> bool {
-    let op = "=|&";
+    let op = "=|&<>";
     op.contains(c)
 }
 
 pub fn is_multi_op (val : &str) -> bool {
-    let op = vec!["<", ">", "<=", ">=", "==", "!=", "||", "&&"];
+    let op = vec!["<", ">", "<=", ">=", "==", "!=", "||", "&&", "<<", ">>"];
     op.contains(&val)
 }
 

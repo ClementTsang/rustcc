@@ -23,8 +23,8 @@ fn generate_function(func : &parser::Function) -> String {
     let mut result : String = String::from(func.name.clone().as_str());
     result.push_str(":\n");
 
-    result.push_str("    pushl   %ebp # Opening function\n");
-    result.push_str("    movl    %esp, %ebp\n");
+    result.push_str("    pushl    %ebp # Opening function\n");
+    result.push_str("    movl     %esp, %ebp\n");
 
     let mut var_map : HashMap<String, i32> = HashMap::new();
     let mut stack_index : i32 = 0;
@@ -39,11 +39,11 @@ fn generate_function(func : &parser::Function) -> String {
     }
     
     if (!is_return_there) {
-        result.push_str("    movl    $0, %eax # Default return value\n");
+        result.push_str("    movl     $0, %eax # Default return value\n");
     }
 
-    result.push_str("    movl    %ebp, %esp # Close function\n");
-    result.push_str("    popl    %ebp\n");
+    result.push_str("    movl     %ebp, %esp # Close function\n");
+    result.push_str("    popl     %ebp\n");
     result.push_str("    ret\n");
 
     result
@@ -108,8 +108,55 @@ fn generate_assignment(assign_exp : &parser::Assignment, var_map : &mut HashMap<
             assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when trying to assign.");
             let var_offset = var_map.get(&(var.var_name.clone()));
             match var_offset {
-                Some (offset) => { 
-                    result.push_str(format!("    movl    %eax, {}(%ebp) # Assigning new value\n", offset).as_str());
+                Some (offset) => {
+                    if (assign_exp.op.as_str() != "=") {
+                        result.push_str("    pushl    %eax # Begin generating assignment operators\n");
+                        result.push_str("    popl     %ecx\n");
+                        result.push_str(format!("    movl     {}(%ebp), %eax\n", offset).as_str());
+                    }
+                    match assign_exp.op.as_str() {
+                        "=" => {
+                            // Don't have to do anything, below statement is default behaviour.
+                        },
+                        "+=" => {
+                            result.push_str("    addl     %ecx, %eax # +=\n"); 
+                        },
+                        "-=" => {
+                            result.push_str("    subl     %ecx, %eax # -=\n");
+                        },
+                        "*=" => {
+                            result.push_str("    imul     %ecx, %eax # *=\n");
+                        },
+                        "/=" => {
+                            result.push_str("    movl     $0, %edx # /=\n");
+                            result.push_str("    idivl    %ecx\n"); 
+                        },
+                        "^=" => {
+                            result.push_str("    xorl     %ecx, %eax # ^=\n");
+                        },
+                        "&=" => {
+                            result.push_str("    andl     %ecx, %eax # &=\n");
+                        },
+                        "|=" => {
+                            result.push_str("    orl      %ecx, %eax # |=\n"); 
+                        },
+                        "%=" => {
+                            result.push_str("    movl     $0, %edx # %=\n");
+                            result.push_str("    idivl    %ecx\n"); 
+                            result.push_str("    movl     %edx, %eax\n"); //Move remainder to eax
+                        },
+                        ">>=" => {
+                            result.push_str("    sarl     %cl, %eax # >>=\n");
+                        },
+                        "<<=" => {
+                            result.push_str("    sall     %cl, %eax # <<=\n");
+                        },
+                        _ => {
+                            println!("Found an invalid assignment operation.");
+                            std::process::exit(1);
+                        }
+                    }
+                    result.push_str(format!("    movl     %eax, {}(%ebp) # Assigning new value\n", offset).as_str());
                 },
                 None => (),
             }
@@ -499,17 +546,17 @@ fn generate_rel_expr(exp : &parser::RelationalExp, var_map : &mut HashMap<String
 fn generate_bit_shift_rchild(expr : &parser::BitShift, rchild : &parser::AdditiveExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
 
-    result.push_str(format!("    pushl   %eax # Generating rel: {}\n", expr.op.as_str()).as_str());
+    result.push_str(format!("    pushl    %eax # Generating rel: {}\n", expr.op.as_str()).as_str());
     result.push_str(generate_add_expr(&*rchild, var_map, stack_index).as_str());
-    result.push_str("    movl    %eax, %ecx\n");
-    result.push_str("    popl    %eax\n");
+    result.push_str("    movl     %eax, %ecx\n");
+    result.push_str("    popl     %eax\n");
 
     match expr.op.as_str() {
         "<<" => {
-            result.push_str("    sall    %cl, %eax # End <<\n");
+            result.push_str("    sall     %cl, %eax # End <<\n");
         },
         ">>" => {
-            result.push_str("    sarl    %cl, %eax # End >>\n");
+            result.push_str("    sarl     %cl, %eax # End >>\n");
         },
         _ => {
             println!("Found an unwritten binary(BitShift): {}", expr.op.as_str());
@@ -626,30 +673,30 @@ fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::Factor, var_ma
     let mut result = String::new();
     match term.op.as_str() {
         "*" => {
-            result.push_str("    pushl  %eax # Generating binary (*)\n");
+            result.push_str("    pushl    %eax # Generating binary (*)\n");
             result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
-            result.push_str("    popl   %ecx\n");
-            result.push_str("    imul   %ecx, %eax # End *\n");
+            result.push_str("    popl     %ecx\n");
+            result.push_str("    imul     %ecx, %eax # End *\n");
         },
         "/" => {
-            result.push_str("    pushl  %eax # Generating binary (/)\n");
+            result.push_str("    pushl    %eax # Generating binary (/)\n");
             result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
-            result.push_str("    pushl  %eax\n");
-            result.push_str("    popl   %ecx\n");
-            result.push_str("    popl   %eax\n");
-            result.push_str("    movl   $0, %edx\n");  //Zero out edx
-            result.push_str("    idivl  %ecx # End /\n"); //ecx is divisor
+            result.push_str("    pushl    %eax\n");
+            result.push_str("    popl     %ecx\n");
+            result.push_str("    popl     %eax\n");
+            result.push_str("    movl     $0, %edx\n");  //Zero out edx
+            result.push_str("    idivl    %ecx # End /\n"); //ecx is divisor
 
         },
         "%" => {
-            result.push_str("    pushl  %eax # Generating binary (%)\n");
+            result.push_str("    pushl    %eax # Generating binary (%)\n");
             result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
-            result.push_str("    pushl  %eax\n");
-            result.push_str("    popl   %ecx\n");
-            result.push_str("    popl   %eax\n");
-            result.push_str("    movl   $0, %edx\n");  //Zero out edx
-            result.push_str("    idivl  %ecx # End %\n");
-            result.push_str("    movl   %edx, %eax # End %\n"); //Move remainder to eax
+            result.push_str("    pushl    %eax\n");
+            result.push_str("    popl     %ecx\n");
+            result.push_str("    popl     %eax\n");
+            result.push_str("    movl     $0, %edx\n");  //Zero out edx
+            result.push_str("    idivl    %ecx\n");
+            result.push_str("    movl     %edx, %eax # End %\n"); //Move remainder to eax
         },
         _ => {
             println!("Found an unwritten Binary(Term): {}", term.op.as_str());
@@ -716,7 +763,7 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
                                 Some(v) => {
                                     result.push_str("    movl    $");
                                     result.push_str((v).to_string().as_str());
-                                    result.push_str(", %eax # Constant integer reference\n");
+                                    result.push_str(",  %eax # Constant integer reference\n");
                                 },
                                 None => {
                                     match factor.var.clone() {
@@ -726,7 +773,7 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
                                             let var_offset = var_map.get(&(va.var_name.clone()));
                                             match var_offset {
                                                 Some (offset) => { 
-                                                    result.push_str(format!("    movl    {}(%ebp), %eax # Variable reference\n", offset).as_str());
+                                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference\n", offset).as_str());
                                                 },
                                                 None => (),
                                             }
@@ -768,10 +815,40 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                     // do nothing with it.
                 }
                 "++" => {
-
+                    match un.var.clone() {
+                        Some (un_var) => {
+                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
+                            let var_offset = var_map.get(&(un_var.var_name.clone()));
+                            match var_offset {
+                                Some (offset) => { 
+                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
+                                    result.push_str("    addl     $1, %eax\n");
+                                    result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
+                                },
+                                None => (),
+                            }
+                        },
+                        None => (),
+                    }
                 },
                 "--" => {
-
+                    match un.var.clone() {
+                        Some (un_var) => {
+                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
+                            let var_offset = var_map.get(&(un_var.var_name.clone()));
+                            match var_offset {
+                                Some (offset) => { 
+                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(pre)\n", offset).as_str());
+                                    result.push_str("    subl     $1, %eax\n");
+                                    result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for --(pre)\n", offset).as_str());
+                                },
+                                None => (),
+                            }
+                        },
+                        None => (),
+                    }
                 },
                 _ => {
                     println!("Found an unwritten unary: {}", un.op.as_str());
@@ -792,10 +869,42 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
             result.push_str(generate_factor(&*fact, var_map, stack_index).as_str());
             match un.op.as_str(){
                 "++" => {
-
-                },
+                    match un.var.clone() {
+                        Some (un_var) => {
+                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
+                            let var_offset = var_map.get(&(un_var.var_name.clone()));
+                            match var_offset {
+                                Some (offset) => { 
+                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
+                                    result.push_str("    movl     %eax, %ecx\n");
+                                    result.push_str("    addl     $1, %ecx\n");
+                                    result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
+                                },
+                                None => (),
+                            }
+                        },
+                        None => (),
+                    }
+                }
                 "--" => {
-
+                    match un.var.clone() {
+                        Some (un_var) => {
+                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
+                            let var_offset = var_map.get(&(un_var.var_name.clone()));
+                            match var_offset {
+                                Some (offset) => { 
+                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(pre)\n", offset).as_str());
+                                    result.push_str("    movl     %eax, %ecx\n");
+                                    result.push_str("    subl     $1, %ecx\n");
+                                    result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for --(pre)\n", offset).as_str());
+                                },
+                                None => (),
+                            }
+                        },
+                        None => (),
+                    }
                 },
                 _ => {
                     println!("Found an unwritten postfix unary: {}", un.op.as_str());

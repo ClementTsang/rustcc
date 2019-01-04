@@ -815,36 +815,52 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                     // do nothing with it.
                 }
                 "++" => {
-                    match un.var.clone() {
+                    match un.right_child.clone() {
                         Some (un_var) => {
-                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
-                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
-                            let var_offset = var_map.get(&(un_var.var_name.clone()));
-                            match var_offset {
-                                Some (offset) => { 
-                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
-                                    result.push_str("    addl     $1, %eax\n");
-                                    result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
-                                },
-                                None => (),
+                            match un_var.var {
+                                Some(var) => {
+                                    // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                                    assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing.");
+                                    let var_offset = var_map.get(&(var.var_name.clone()));
+                                    match var_offset {
+                                        Some (offset) => { 
+                                            result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
+                                            result.push_str("    addl     $1, %eax\n");
+                                            result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
+                                        },
+                                        None => (),
+                                    }
+                                }
+                                None => {
+                                    println!("Tried to increment a non-variable.");
+                                    std::process::exit(1);
+                                }
                             }
                         },
                         None => (),
                     }
                 },
                 "--" => {
-                    match un.var.clone() {
+                    match un.right_child.clone() {
                         Some (un_var) => {
-                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
-                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
-                            let var_offset = var_map.get(&(un_var.var_name.clone()));
-                            match var_offset {
-                                Some (offset) => { 
-                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(pre)\n", offset).as_str());
-                                    result.push_str("    subl     $1, %eax\n");
-                                    result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for --(pre)\n", offset).as_str());
-                                },
-                                None => (),
+                            match un_var.var {
+                                Some(var) => {
+                                    // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                                    assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing.");
+                                    let var_offset = var_map.get(&(var.var_name.clone()));
+                                    match var_offset {
+                                        Some (offset) => { 
+                                            result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
+                                            result.push_str("    subl     $1, %eax\n");
+                                            result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
+                                        },
+                                        None => (),
+                                    }
+                                }
+                                None => {
+                                    println!("Tried to increment a non-variable.");
+                                    std::process::exit(1);
+                                }
                             }
                         },
                         None => (),
@@ -864,57 +880,6 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
 
 fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
-    match un.right_fact.clone() {
-        Some(fact) => {
-            result.push_str(generate_factor(&*fact, var_map, stack_index).as_str());
-            match un.op.as_str(){
-                "++" => {
-                    match un.var.clone() {
-                        Some (un_var) => {
-                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
-                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
-                            let var_offset = var_map.get(&(un_var.var_name.clone()));
-                            match var_offset {
-                                Some (offset) => { 
-                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
-                                    result.push_str("    movl     %eax, %ecx\n");
-                                    result.push_str("    addl     $1, %ecx\n");
-                                    result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
-                                },
-                                None => (),
-                            }
-                        },
-                        None => (),
-                    }
-                }
-                "--" => {
-                    match un.var.clone() {
-                        Some (un_var) => {
-                            // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
-                            assert!(var_map.contains_key(&(un_var.var_name.clone())), "Variable declaration not found when referencing.");
-                            let var_offset = var_map.get(&(un_var.var_name.clone()));
-                            match var_offset {
-                                Some (offset) => { 
-                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(pre)\n", offset).as_str());
-                                    result.push_str("    movl     %eax, %ecx\n");
-                                    result.push_str("    subl     $1, %ecx\n");
-                                    result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for --(pre)\n", offset).as_str());
-                                },
-                                None => (),
-                            }
-                        },
-                        None => (),
-                    }
-                },
-                _ => {
-                    println!("Found an unwritten postfix unary: {}", un.op.as_str());
-                    std::process::exit(1);
-                },
-            }
-        },
-        None => {
-        },
-   }
     result
 }
 

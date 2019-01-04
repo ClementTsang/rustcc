@@ -1,6 +1,7 @@
 #![allow(unused_parens)]
 #![allow(unused_variables)]
 #![allow(non_snake_case)]
+#![allow(unused_assignments)]
 
 /**
  * To do:
@@ -669,18 +670,18 @@ fn generate_add_expr(exp : &parser::AdditiveExp, var_map : &mut HashMap<String, 
     result
 }
 
-fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::Factor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
     match term.op.as_str() {
         "*" => {
             result.push_str("    pushl    %eax # Generating binary (*)\n");
-            result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
+            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index).as_str());
             result.push_str("    popl     %ecx\n");
             result.push_str("    imul     %ecx, %eax # End *\n");
         },
         "/" => {
             result.push_str("    pushl    %eax # Generating binary (/)\n");
-            result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
+            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index).as_str());
             result.push_str("    pushl    %eax\n");
             result.push_str("    popl     %ecx\n");
             result.push_str("    popl     %eax\n");
@@ -690,7 +691,7 @@ fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::Factor, var_ma
         },
         "%" => {
             result.push_str("    pushl    %eax # Generating binary (%)\n");
-            result.push_str(generate_factor(&*rfactor, var_map, stack_index).as_str());
+            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index).as_str());
             result.push_str("    pushl    %eax\n");
             result.push_str("    popl     %ecx\n");
             result.push_str("    popl     %eax\n");
@@ -726,11 +727,11 @@ fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stac
                     Some(lfactor) => {
                         match term.right_child.clone() {
                             Some(rfactor) => {
-                                result.push_str(generate_factor(&*lfactor, var_map, stack_index).as_str());
+                                result.push_str(generate_postfix_unary(&*lfactor, var_map, stack_index).as_str());
                                 result.push_str(generate_term_rfactor(term, &*rfactor, var_map, stack_index).as_str());
                             },
                             None => {
-                                result.push_str(generate_factor(&*lfactor, var_map, stack_index).as_str());
+                                result.push_str(generate_postfix_unary(&*lfactor, var_map, stack_index).as_str());
                             },
                         }
                     },
@@ -791,6 +792,131 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
     result
 }
 
+fn is_a_var (assign : &parser::Assignment, var_name : &mut String) -> bool {
+    let mut result : bool = false;
+
+    match assign.exp.clone() {
+        Some (or_exp) => {
+            match or_exp.right_and_exp.clone() {
+                Some (x) => return false,
+                None => (),
+            }
+            match or_exp.left_and_exp.clone() {
+                Some (and_exp) => {
+                    match and_exp.right_child.clone() {
+                        Some (x) => return false,
+                        None => (),
+                    }
+                    match and_exp.left_child.clone() {
+                        Some (bitor) => {
+                            match bitor.right_child.clone() {
+                                Some (x) => return false,
+                                None => (),
+                            }
+                            match bitor.left_child.clone() {
+                                Some (bitxor) => {
+                                    match bitxor.right_child.clone() {
+                                        Some(x) => return false,
+                                        None => (),
+                                    }
+                                    match bitxor.left_child.clone() {
+                                        Some (bitand) => {
+                                            match bitand.right_child.clone() {
+                                                Some(x) => return false,
+                                                None => (),
+                                            }
+                                            match bitand.left_child.clone() {
+                                                Some(eq_exp) => {
+                                                    match eq_exp.right_relation_exp.clone() {
+                                                        Some(x) => return false,
+                                                        None => (),
+                                                    }
+                                                    match eq_exp.left_relation_exp.clone() {
+                                                        Some(rel_exp) => {
+                                                            match rel_exp.right_child.clone() {
+                                                                Some(x) => return false,
+                                                                None => (),
+                                                            }
+                                                            match rel_exp.left_child.clone() {
+                                                                Some(bitshift) => {
+                                                                    match bitshift.right_child.clone() {
+                                                                        Some(x) => return false,
+                                                                        None => (),
+                                                                    }
+                                                                    match bitshift.left_child.clone() {
+                                                                        Some(add_exp) => {
+                                                                            match add_exp.right_term {
+                                                                                Some(x) => return false,
+                                                                                None => (),
+                                                                            }
+                                                                            match add_exp.left_term {
+                                                                                Some (term) => {
+                                                                                    match term.right_child {
+                                                                                        Some(x) => return false,
+                                                                                        None => (),
+                                                                                    }
+                                                                                    match term.left_child {
+                                                                                        Some (pf_unary) => {
+                                                                                            if (pf_unary.op != String::new().clone()) {
+                                                                                                return false;
+                                                                                            }
+                                                                                            match pf_unary.child {
+                                                                                                Some (factor) => {
+                                                                                                    match factor.unary {
+                                                                                                        Some(x) => return false,
+                                                                                                        None => (),
+                                                                                                    }
+                                                                                                    match factor.var {
+                                                                                                        Some(var) => {
+                                                                                                            result = true;
+                                                                                                            *var_name = var.var_name.clone();
+                                                                                                        },
+                                                                                                        None => {
+                                                                                                            match factor.exp {
+                                                                                                                Some(exp) => result = is_a_var(&*exp, var_name),
+                                                                                                                None => result = false,
+                                                                                                            }
+                                                                                                        },
+                                                                                                    }
+                                                                                                },
+                                                                                                None => result = false,
+                                                                                            }
+                                                                                        },
+                                                                                        None => result = false,
+                                                                                    }
+                                                                                },
+                                                                                None => result = false,
+                                                                            }
+                                                                        },
+                                                                        None => result = false,
+                                                                    }
+                                                                },
+                                                                None => result = false,
+                                                            }
+                                                        },
+                                                        None => result = false,
+                                                    }
+                                                },
+                                                None => result = false,
+                                            }
+                                        },
+                                        None => result = false,
+                                    }
+                                },
+                                None => result = false,
+                            }
+                        },
+                        None => result = false,
+                    }
+                },
+                None => result = false,
+            }
+        },
+        None => result = false,
+    }
+
+    result
+}
 
 fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
@@ -816,8 +942,8 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                 }
                 "++" => {
                     match un.child.clone() {
-                        Some (un_var) => {
-                            match un_var.var {
+                        Some (un_child) => {
+                            match un_child.var {
                                 Some(var) => {
                                     // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
                                     assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing.");
@@ -832,8 +958,32 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                                     }
                                 }
                                 None => {
-                                    println!("Tried to increment a non-variable.");
-                                    std::process::exit(1);
+                                    match un_child.exp {
+                                        Some(exp) => {
+                                            let mut var_name : String = String::new();
+                                            if (is_a_var(&*exp.clone(), &mut var_name)) {
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index).as_str());
+                                                assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
+                                                let var_offset = var_map.get(&(var_name.clone()));
+                                                match var_offset {
+                                                    Some (offset) => { 
+                                                        result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
+                                                        result.push_str("    addl     $1, %eax\n");
+                                                        result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
+                                                    },
+                                                    None => (),
+                                                }
+                                            }
+                                            else {
+                                                println!("Tried to increment a non-variable.");
+                                                std::process::exit(1);       
+                                            }
+                                        },
+                                        None => {
+                                            println!("Tried to increment a non-variable.");
+                                            std::process::exit(1);
+                                        },
+                                    }
                                 }
                             }
                         },
@@ -842,24 +992,48 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                 },
                 "--" => {
                     match un.child.clone() {
-                        Some (un_var) => {
-                            match un_var.var {
+                        Some (un_child) => {
+                            match un_child.var {
                                 Some(var) => {
                                     // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
                                     assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing.");
                                     let var_offset = var_map.get(&(var.var_name.clone()));
                                     match var_offset {
                                         Some (offset) => { 
-                                            result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(pre)\n", offset).as_str());
+                                            result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(pre)\n", offset).as_str());
                                             result.push_str("    subl     $1, %eax\n");
-                                            result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for ++(pre)\n", offset).as_str());
+                                            result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for --(pre)\n", offset).as_str());
                                         },
                                         None => (),
                                     }
                                 }
                                 None => {
-                                    println!("Tried to increment a non-variable.");
-                                    std::process::exit(1);
+                                    match un_child.exp {
+                                        Some(exp) => {
+                                            let mut var_name : String = String::new();
+                                            if (is_a_var(&*exp.clone(), &mut var_name)) {
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index).as_str());
+                                                assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
+                                                let var_offset = var_map.get(&(var_name.clone()));
+                                                match var_offset {
+                                                    Some (offset) => { 
+                                                        result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(pre)\n", offset).as_str());
+                                                        result.push_str("    subl     $1, %eax\n");
+                                                        result.push_str(format!("    movl     %eax, {}(%ebp) # Variable assignment for --(pre)\n", offset).as_str());
+                                                    },
+                                                    None => (),
+                                                }
+                                            }
+                                            else {
+                                                println!("Tried to increment a non-variable.");
+                                                std::process::exit(1);       
+                                            }
+                                        },
+                                        None => {
+                                            println!("Tried to increment a non-variable.");
+                                            std::process::exit(1);
+                                        },
+                                    }
                                 }
                             }
                         },
@@ -880,6 +1054,122 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
 
 fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
+    match un.child.clone() {
+        Some(fact) => {
+            result.push_str(generate_factor(&*fact, var_map, stack_index).as_str());
+            match un.op.as_str(){
+                "++" => {
+                    match un.child.clone() {
+                        Some (un_child) => {
+                            match (un_child.var) {
+                                Some (var) => {
+                                    // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                                    assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing.");
+                                    let var_offset = var_map.get(&(var.var_name.clone()));
+                                    match var_offset {
+                                        Some (offset) => { 
+                                            result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(post)\n", offset).as_str());
+                                            result.push_str("    movl     %eax, %ecx\n");
+                                            result.push_str("    addl     $1, %ecx\n");
+                                            result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for ++(post)\n", offset).as_str());
+                                        },
+                                        None => (),
+                                    }
+                                },
+                                None => {
+                                    match un_child.exp {
+                                        Some(exp) => {
+                                            let mut var_name : String = String::new();
+                                            if (is_a_var(&*exp.clone(), &mut var_name)) {
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index).as_str());
+                                                assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
+                                                let var_offset = var_map.get(&(var_name.clone()));
+                                                match var_offset {
+                                                    Some (offset) => { 
+                                                        result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for ++(post)\n", offset).as_str());
+                                                        result.push_str("    movl     %eax, %ecx\n");
+                                                        result.push_str("    addl     $1, %ecx\n");
+                                                        result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for ++(post)\n", offset).as_str());
+                                                    },
+                                                    None => (),
+                                                }
+                                            }
+                                            else {
+                                                println!("Tried to increment a non-variable.");
+                                                std::process::exit(1);       
+                                            }
+                                        },
+                                        None => {
+                                            println!("Tried to increment a non-variable.");
+                                            std::process::exit(1);
+                                        },
+                                    }
+                                },
+                            }
+                        },
+                        None => (),
+                    }
+                }
+                "--" => {
+                    match un.child.clone() {
+                        Some (un_child) => {
+                            match (un_child.var) {
+                                Some (var) => {
+                                    // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
+                                    assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing.");
+                                    let var_offset = var_map.get(&(var.var_name.clone()));
+                                    match var_offset {
+                                        Some (offset) => { 
+                                            result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(post)\n", offset).as_str());
+                                            result.push_str("    movl     %eax, %ecx\n");
+                                            result.push_str("    subl     $1, %ecx\n");
+                                            result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for --(post)\n", offset).as_str());
+                                        },
+                                        None => (),
+                                    }
+                                },
+                                None => {
+                                    match un_child.exp {
+                                        Some(exp) => {
+                                            let mut var_name : String = String::new();
+                                            if (is_a_var(&*exp.clone(), &mut var_name)) {
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index).as_str());
+                                                assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
+                                                let var_offset = var_map.get(&(var_name.clone()));
+                                                match var_offset {
+                                                    Some (offset) => { 
+                                                        result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for --(post)\n", offset).as_str());
+                                                        result.push_str("    movl     %eax, %ecx\n");
+                                                        result.push_str("    subl     $1, %ecx\n");
+                                                        result.push_str(format!("    movl     %ecx, {}(%ebp) # Variable assignment for --(post)\n", offset).as_str());
+                                                    },
+                                                    None => (),
+                                                }
+                                            }
+                                            else {
+                                                println!("Tried to increment a non-variable.");
+                                                std::process::exit(1);       
+                                            }
+                                        },
+                                        None => {
+                                            println!("Tried to increment a non-variable.");
+                                            std::process::exit(1);
+                                        },
+                                    }
+                                },
+                            }
+                        },
+                        None => (),
+                    }
+                },
+                _ => {
+                    
+                },
+            }
+        },
+        None => {
+        },
+    }
     result
 }
 

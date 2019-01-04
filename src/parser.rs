@@ -105,8 +105,8 @@ pub struct AdditiveExp {
 pub struct Term {
     pub op : String,
     pub left_term : Option<Box<Term>>,
-    pub left_child : Option<Box<Factor>>,
-    pub right_child : Option<Box<Factor>>,
+    pub left_child : Option<Box<PostFixUnary>>,
+    pub right_child : Option<Box<PostFixUnary>>,
 }
 
 pub struct Factor {
@@ -389,7 +389,7 @@ impl Term {
         Term {
             op: String::new(),
             left_term : None,
-            left_child : Some(Box::new(Factor::set_to_zero())),
+            left_child : Some(Box::new(PostFixUnary::set_to_zero())),
             right_child : None,
         }
     }
@@ -433,6 +433,13 @@ impl PostFixUnary {
         PostFixUnary {
             op : String::new(),
             child : None,
+        }
+    }
+
+    pub fn set_to_zero() -> PostFixUnary {
+        PostFixUnary {
+            op : String::new(),
+            child : Some(Box::new(Factor::set_to_zero())),
         }
     }
 }
@@ -1033,7 +1040,7 @@ pub fn print_term (term : &Term) {
                     print!("(");
                     print_term(&*lterm);
                     print!(" {} ", term.op);
-                    print_factor(&(*rfactor));
+                    print_postfix_unary(&(*rfactor));
                     print!(")");
                 },
                 None => {
@@ -1047,13 +1054,13 @@ pub fn print_term (term : &Term) {
                         match term.right_child.clone() {
                             Some(rfactor) => {
                                 print!("(");
-                                print_factor(&(*lfactor));
+                                print_postfix_unary(&(*lfactor));
                                 print!(" {} ", term.op);
-                                print_factor(&(*rfactor));
+                                print_postfix_unary(&(*rfactor));
                                 print!(")");
                             },
                             None => {
-                                print_factor(&(*lfactor));
+                                print_postfix_unary(&(*lfactor));
                             },
                         }
                     },
@@ -1117,9 +1124,7 @@ pub fn print_unary (unary : &Unary) {
 pub fn print_postfix_unary (pf_unary : &PostFixUnary) {
    match pf_unary.child.clone() {
         Some(fact) => {
-            print!("(");
             print_factor(&(*fact));
-            print!(")");
         },
         None => {
         },
@@ -1148,6 +1153,8 @@ pub fn get_option_token( op : Option<lexer::Token> ) -> lexer::Token {
 }
 
 pub fn get_next_token(token_vec : &mut Vec<lexer::Token>) -> lexer::Token {
+    assert!(token_vec.len() >=1, "Token vector is not at least of size 1.");
+
     let tok : lexer::Token = get_option_token(token_vec.first().cloned());
     token_vec.remove(0);
     //println!("Token obtained: {}", tok);
@@ -1155,10 +1162,13 @@ pub fn get_next_token(token_vec : &mut Vec<lexer::Token>) -> lexer::Token {
 }
 
 pub fn peek_next_token(token_vec : &Vec<lexer::Token>) -> lexer::Token {
+    assert!(token_vec.len() > 0, "Token vector is not at least of size 1.");
     get_option_token(token_vec.first().cloned())
 }
 
 pub fn peek_two_tokens(token_vec : &Vec<lexer::Token>) -> lexer::Token {
+    assert!(token_vec.len() >=2, "Token vector is not at least of size 2.");
+
     let mut tok_clone = token_vec.clone();
     tok_clone.remove(0);
     get_option_token(tok_clone.first().cloned())
@@ -1664,7 +1674,8 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
            tok.name == "Identifier", 
            "Invalid term: {}.", tok.value);
 
-    result.left_child = Some(Box::new(parse_factor(token_vec)));
+    let left_child : Factor = parse_factor(token_vec);
+    result.left_child = Some(Box::new(parse_postfix_unary(token_vec, left_child.clone())));
     tok = peek_next_token(token_vec);
 
     while (tok.value == "*" || tok.value == "/" || tok.value == "%") {
@@ -1678,7 +1689,8 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
             }
         }
         
-        result.right_child = Some(Box::new(parse_factor(token_vec)));
+        let right_child : Factor = parse_factor(token_vec);
+        result.right_child = Some(Box::new(parse_postfix_unary(token_vec, right_child.clone())));
 
         tok = peek_next_token(token_vec);
          
@@ -1709,7 +1721,7 @@ pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
         tok = get_next_token(token_vec);
         assert!(tok.value==")", "Missing closing paren, saw {}.", tok.value);
     }
-    else if (valid_unary(tok.value.clone())) {
+    else if (valid_unary(tok.value.clone()) || valid_postfix_unary(tok.value.clone())) {
         result.unary = Some(Box::new(parse_unary(token_vec)));
     }
     else if (tok.name == "Num") {
@@ -1737,15 +1749,18 @@ pub fn parse_unary(token_vec : &mut Vec<lexer::Token>) -> Unary {
 }
 
 
-pub fn parse_postfix_unary(token_vec : &mut Vec<lexer::Token>, var_name : String) -> PostFixUnary {
+pub fn parse_postfix_unary(token_vec : &mut Vec<lexer::Token>, factor : Factor) -> PostFixUnary {
     let mut result : PostFixUnary = PostFixUnary::new();
     let tok : lexer::Token = peek_next_token(token_vec);
 
-    result.op = peek_two_tokens(token_vec).value;
-    token_vec.remove(1);
+    if (tok.value.clone() == "--" || tok.value.clone() == "++") {
+        result.op = tok.value.clone();
+        token_vec.remove(0);
+    }
 
-    result.child = Some(Box::new(parse_factor(token_vec)));
+    result.child = Some(Box::new(factor));
 
+    //result.child = Some(Box::new(parse_factor(token_vec)));
 
     result
 }

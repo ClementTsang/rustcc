@@ -1,1 +1,1 @@
-./test_script.sh | egrep 'FAILED|saw|Failed'
+./test_script.sh | egrep 'FAILED|Saw|Failed'

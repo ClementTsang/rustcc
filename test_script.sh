@@ -54,6 +54,10 @@ test_compile_run() {
 }
 
 run_test() {
+    if [ -e "${1%.*}.s" ]; then
+        rm "${1%.*}.s"
+    fi
+
     cargo run ${1} &> /dev/null
 
     ret_val="$?"

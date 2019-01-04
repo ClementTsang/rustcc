@@ -58,7 +58,7 @@ pub fn is_third_char_check (c : char) -> bool {
 }
 
 pub fn is_a_two_char_op (val : &str) -> bool {
-    let op = vec!["+=", "-=", "/=", "*=", "%=", "++", "--", "<", ">", "<=", ">=", "==", "!=", "||", "&&", "<<", ">>"];
+    let op = vec!["+=", "-=", "/=", "*=", "%=", "&=", "^=", "|=", "++", "--", "<", ">", "<=", ">=", "==", "!=", "||", "&&", "<<", ">>"];
     op.contains(&val)
 }
 
@@ -153,32 +153,42 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
                 let mut tmp_input = input.clone();
                 tmp_input.remove(0);
                 let second_char : char = tmp_input.chars().next().unwrap();
-                let third_char : char = tmp_input.chars().next().unwrap();
-
-                let two_char_val : String = if (second_char.is_whitespace() || !is_second_char_check(second_char)) {
+                                let two_char_val : String = if (second_char.is_whitespace() || !is_second_char_check(second_char)) {
                     c.to_string()
                 } 
                 else { 
                     c.to_string() + second_char.to_string().as_str()
                 };
+                
+                if (input.len() > 2) {
+                    tmp_input.remove(0);
+                    let third_char : char = tmp_input.chars().next().unwrap();
 
 
-                let three_char_val : String = if (two_char_val.len() == 2 && 
-                                                  !third_char.is_whitespace() && 
-                                                  is_third_char_check(third_char)) {
-                    two_char_val.clone() + third_char.to_string().as_str()
+
+                    let three_char_val : String = if (two_char_val.len() == 2 && 
+                                                      !third_char.is_whitespace() && 
+                                                      is_third_char_check(third_char)) {
+                        two_char_val.clone() + third_char.to_string().as_str()
+                    }
+                    else {
+                        c.to_string()
+                    };
+
+                    if (is_a_three_char_op(three_char_val.as_str())) {
+                        token_vec.push(read_multi_op(input, three_char_val.clone()));
+                        continue;
+                    }
+                    else if (is_a_two_char_op(two_char_val.as_str())) {
+                        token_vec.push(read_multi_op(input, two_char_val.clone()));      
+                        continue;
+                    }
                 }
                 else {
-                    c.to_string()
-                };
-
-                if (is_a_three_char_op(three_char_val.as_str())) {
-                    token_vec.push(read_multi_op(input, three_char_val.clone()));
-                    continue;
-                }
-                else if (is_a_two_char_op(two_char_val.as_str())) {
-                    token_vec.push(read_multi_op(input, two_char_val.clone()));      
-                    continue;
+                    if (is_a_two_char_op(two_char_val.as_str())) {
+                        token_vec.push(read_multi_op(input, two_char_val.clone()));      
+                        continue;
+                    }
                 }
             }
             if (is_letter(c)) {

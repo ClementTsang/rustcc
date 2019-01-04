@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(unused_variables)]
 #![allow(non_snake_case)]
@@ -11,12 +9,7 @@
 
 pub mod parser;
 use std::env;
-use std::fs;
-use std::str;
-use std::clone;
-use std::fmt;
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::Write;
 use std::collections::HashMap;
 
@@ -671,7 +664,7 @@ fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stac
     let mut result = String::new();
     match term.left_term.clone() {
         Some(lterm) => {
-            match term.right_factor.clone() {
+            match term.right_child.clone() {
                 Some(rfactor) => {
                     result.push_str(generate_term(&*lterm, var_map, stack_index).as_str());
                     result.push_str(generate_term_rfactor(term, &*rfactor, var_map, stack_index).as_str());
@@ -682,9 +675,9 @@ fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stac
             }
         },
         None => {
-            match term.left_factor.clone() {
+            match term.left_child.clone() {
                     Some(lfactor) => {
-                        match term.right_factor.clone() {
+                        match term.right_child.clone() {
                             Some(rfactor) => {
                                 result.push_str(generate_factor(&*lfactor, var_map, stack_index).as_str());
                                 result.push_str(generate_term_rfactor(term, &*rfactor, var_map, stack_index).as_str());
@@ -704,43 +697,49 @@ fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stac
 
 fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
-    match factor.unary.clone() {
-        Some(un) => {
-            result.push_str(generate_unary(&*un, var_map, stack_index).as_str());
+    match factor.postfix_unary.clone() {
+        Some (pf_un) => {
+            result.push_str(generate_postfix_unary(&*pf_un, var_map, stack_index).as_str());
         },
         None => {
-            match factor.exp.clone() {
-                Some(e) => {
-                    result.push_str(generate_assignment(&*e, var_map, stack_index).as_str());
+            match factor.unary.clone() {
+                Some(un) => {
+                    result.push_str(generate_unary(&*un, var_map, stack_index).as_str());
                 },
                 None => {
-                    match factor.val {
-                        Some(v) => {
-                            result.push_str("    movl    $");
-                            result.push_str((v).to_string().as_str());
-                            result.push_str(", %eax # Constant integer reference\n");
+                    match factor.exp.clone() {
+                        Some(e) => {
+                            result.push_str(generate_assignment(&*e, var_map, stack_index).as_str());
                         },
                         None => {
-                            match factor.var.clone() {
-                                Some(va) => {
-                                    // Assign new value to variable IF it exists.
-                                    assert!(var_map.contains_key(&(va.var_name.clone())), "Variable declaration not found when referencing.");
-                                    let var_offset = var_map.get(&(va.var_name.clone()));
-                                    match var_offset {
-                                        Some (offset) => { 
-                                            result.push_str(format!("    movl    {}(%ebp), %eax # Variable reference\n", offset).as_str());
+                            match factor.val {
+                                Some(v) => {
+                                    result.push_str("    movl    $");
+                                    result.push_str((v).to_string().as_str());
+                                    result.push_str(", %eax # Constant integer reference\n");
+                                },
+                                None => {
+                                    match factor.var.clone() {
+                                        Some(va) => {
+                                            // Assign new value to variable IF it exists.
+                                            assert!(var_map.contains_key(&(va.var_name.clone())), "Variable declaration not found when referencing.");
+                                            let var_offset = var_map.get(&(va.var_name.clone()));
+                                            match var_offset {
+                                                Some (offset) => { 
+                                                    result.push_str(format!("    movl    {}(%ebp), %eax # Variable reference\n", offset).as_str());
+                                                },
+                                                None => (),
+                                            }
                                         },
                                         None => (),
                                     }
                                 },
-                                None => {
-                                },
                             }
                         },
                     }
-                },
+                }
             }
-        }
+        },
     }
     result
 }
@@ -748,7 +747,7 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
 
 fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
-    match un.right_fact.clone() {
+    match un.right_child.clone() {
         Some(fact) => {
             result.push_str(generate_factor(&*fact, var_map, stack_index).as_str());
             match un.op.as_str(){
@@ -764,8 +763,42 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                 "-" => {
                     result.push_str("    neg     %eax # Generating -\n");
                 },
+                "+" => {
+                    // Don't have to do anything, as we basically just find %eax and
+                    // do nothing with it.
+                }
+                "++" => {
+
+                },
+                "--" => {
+
+                },
                 _ => {
                     println!("Found an unwritten unary: {}", un.op.as_str());
+                    std::process::exit(1);
+                },
+            }
+        },
+        None => {
+        },
+   }
+    result
+}
+
+fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+    match un.right_fact.clone() {
+        Some(fact) => {
+            result.push_str(generate_factor(&*fact, var_map, stack_index).as_str());
+            match un.op.as_str(){
+                "++" => {
+
+                },
+                "--" => {
+
+                },
+                _ => {
+                    println!("Found an unwritten postfix unary: {}", un.op.as_str());
                     std::process::exit(1);
                 },
             }

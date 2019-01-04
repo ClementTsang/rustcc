@@ -1,14 +1,8 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(unused_variables)]
 
-use std::env;
-use std::fs;
 use std::str;
-use std::clone;
 use std::fmt;
-
 
 pub struct Token {
     pub name : String,
@@ -53,13 +47,23 @@ pub fn is_unary (c : char) -> bool {
     op.contains(c)
 }
 
-pub fn is_multi_check (c : char) -> bool {
-    let op = "=|&<>";
+pub fn is_second_char_check (c : char) -> bool {
+    let op = "=|&<>+-";
     op.contains(c)
 }
 
-pub fn is_multi_op (val : &str) -> bool {
-    let op = vec!["<", ">", "<=", ">=", "==", "!=", "||", "&&", "<<", ">>"];
+pub fn is_third_char_check (c : char) -> bool {
+    let op = "=";
+    op.contains(c)
+}
+
+pub fn is_a_two_char_op (val : &str) -> bool {
+    let op = vec!["+=", "-=", "/=", "*=", "%=", "++", "--", "<", ">", "<=", ">=", "==", "!=", "||", "&&", "<<", ">>"];
+    op.contains(&val)
+}
+
+pub fn is_a_three_char_op (val : &str) -> bool {
+    let op = vec!["<<=", ">>="];
     op.contains(&val)
 }
 
@@ -74,7 +78,7 @@ pub fn read_identifier (input : &mut String) -> Token {
     let mut iden_name = String::new();
     let tmp = input.clone();
     for c in tmp.chars() {
-        if (!c.is_whitespace() && !is_punctuation(c)) {
+        if (is_number(c) || is_letter(c)) {
             iden_name.push(c);
             input.remove(0);
         }
@@ -128,7 +132,13 @@ pub fn read_multi_op(input : &mut String, ret_op : String) -> Token {
     for x in 0..ret_op.len() {
         input.remove(0);
     }
-    Token{name : String::from("Op"), value : ret_op}
+    let op = vec!["+=", "-=", "/=", "*=", "%=", "^=", "&=", "|=", "<<=", ">>="];
+    if (op.contains(&ret_op.as_str())) {
+        Token{name : String::from("AssignOp"), value : ret_op}
+    }
+    else {
+        Token{name : String::from("Op"), value : ret_op}
+    }
 }
 
 pub fn lexer(input : &mut String) -> Vec<Token> {
@@ -142,17 +152,32 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
             if (input.len() > 1) {
                 let mut tmp_input = input.clone();
                 tmp_input.remove(0);
-                let tmp_char : char = tmp_input.chars().next().unwrap();
+                let second_char : char = tmp_input.chars().next().unwrap();
+                let third_char : char = tmp_input.chars().next().unwrap();
 
-                let test_val : String = if (tmp_char.is_whitespace() || !is_multi_check(tmp_char)) {
+                let two_char_val : String = if (second_char.is_whitespace() || !is_second_char_check(second_char)) {
                     c.to_string()
                 } 
                 else { 
-                    c.to_string() + tmp_char.to_string().as_str()
+                    c.to_string() + second_char.to_string().as_str()
                 };
 
-                if (is_multi_op(test_val.as_str())) {
-                    token_vec.push(read_multi_op(input, test_val.clone()));      
+
+                let three_char_val : String = if (two_char_val.len() == 2 && 
+                                                  !third_char.is_whitespace() && 
+                                                  is_third_char_check(third_char)) {
+                    two_char_val.clone() + third_char.to_string().as_str()
+                }
+                else {
+                    c.to_string()
+                };
+
+                if (is_a_three_char_op(three_char_val.as_str())) {
+                    token_vec.push(read_multi_op(input, three_char_val.clone()));
+                    continue;
+                }
+                else if (is_a_two_char_op(two_char_val.as_str())) {
+                    token_vec.push(read_multi_op(input, two_char_val.clone()));      
                     continue;
                 }
             }

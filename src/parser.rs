@@ -1,16 +1,9 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(unused_variables)]
 #![allow(while_true)]
 
 pub mod lexer;
-
-use std::env;
 use std::fs;
-use std::str;
-use std::clone;
-use std::fmt;
 
 pub struct Program { 
     pub fnc : Function,
@@ -111,13 +104,14 @@ pub struct AdditiveExp {
 pub struct Term {
     pub op : String,
     pub left_term : Option<Box<Term>>,
-    pub left_factor : Option<Box<Factor>>,
-    pub right_factor : Option<Box<Factor>>,
+    pub left_child : Option<Box<Factor>>,
+    pub right_child : Option<Box<Factor>>,
 }
 
 pub struct Factor {
     pub op : String,
     pub unary : Option<Box<Unary>>,
+    pub postfix_unary : Option<Box<PostFixUnary>>,
     pub exp : Option<Box<Assignment>>,
     pub val : Option<i32>,
     pub var : Option<Variable>,
@@ -125,9 +119,13 @@ pub struct Factor {
 
 pub struct Unary {
     pub op : String,
-    pub right_fact : Option<Box<Factor>>,
+    pub right_child : Option<Box<Factor>>,
 }
 
+pub struct PostFixUnary {
+    pub op : String,
+    pub right_fact : Option<Box<Factor>>,
+}
 
 impl Program { 
     pub fn new () -> Program {
@@ -379,8 +377,8 @@ impl Term {
         Term {
             op: String::new(),
             left_term : None,
-            left_factor : None,
-            right_factor : None,
+            left_child : None,
+            right_child : None,
         }
     }
 
@@ -388,8 +386,8 @@ impl Term {
         Term {
             op: String::new(),
             left_term : None,
-            left_factor : Some(Box::new(Factor::set_to_zero())),
-            right_factor : None,
+            left_child : Some(Box::new(Factor::set_to_zero())),
+            right_child : None,
         }
     }
 }
@@ -399,6 +397,7 @@ impl Factor {
         Factor {
             op : String::new(),
             unary : None,
+            postfix_unary : None,
             exp: None,
             val : None,
             var : None,
@@ -409,6 +408,7 @@ impl Factor {
         Factor {
             op : String::new(),
             unary : None,
+            postfix_unary : None,
             exp: None,
             val : Some(0),
             var : None,
@@ -419,6 +419,15 @@ impl Factor {
 impl Unary { 
     pub fn new() -> Unary {
         Unary {
+            op : String::new(),
+            right_child : None,
+        }
+    }
+}
+
+impl PostFixUnary { 
+    pub fn new() -> PostFixUnary {
+        PostFixUnary {
             op : String::new(),
             right_fact : None,
         }
@@ -557,8 +566,8 @@ impl Clone for Term {
         Term {
             op : self.op.clone(),
             left_term : self.left_term.clone(),
-            left_factor : self.left_factor.clone(),
-            right_factor : self.right_factor.clone(),
+            left_child : self.left_child.clone(),
+            right_child : self.right_child.clone(),
         }
     }
 }
@@ -568,6 +577,7 @@ impl Clone for Factor {
         Factor {
             op : self.op.clone(),
             unary : self.unary.clone(),
+            postfix_unary : self.postfix_unary.clone(),
             exp : self.exp.clone(),
             val : self.val,
             var: self.var.clone(),
@@ -578,6 +588,15 @@ impl Clone for Factor {
 impl Clone for Unary { 
     fn clone(&self) -> Self {
         Unary {
+            op : self.op.clone(),
+            right_child : self.right_child.clone(),
+        }
+    }
+}
+
+impl Clone for PostFixUnary { 
+    fn clone(&self) -> Self {
+        PostFixUnary {
             op : self.op.clone(),
             right_fact : self.right_fact.clone(),
         }
@@ -626,10 +645,8 @@ pub fn print_declaration (decl : &Declaration) {
 }
 
 pub fn print_assignment (exp : &Assignment) {
-
     match exp.var.clone() {
         Some(var) => {
-            print!("(");
             print!("{} = ", var.var_name);
         },
         None => (),
@@ -642,6 +659,7 @@ pub fn print_assignment (exp : &Assignment) {
         None => {
             match exp.exp.clone() {
                 Some(exp) => {
+                    print!("(");
                     print_or(&exp);
                     print!(")");
                 },
@@ -931,7 +949,7 @@ pub fn print_bit_shift(exp : &BitShift) {
             match exp.right_child.clone() {
                 Some(r_child) => {
                     print!("(");
-                    print_bit_shift(&*lexp);
+                    print_bit_shift(&*lexp); 
                     print!(" {} ", exp.op);
                     print_add(&*r_child);
                     print!(")");
@@ -1006,7 +1024,7 @@ pub fn print_add(exp : &AdditiveExp) {
 pub fn print_term (term : &Term) {
     match term.left_term.clone() {
         Some(lterm) => {
-            match term.right_factor.clone() {
+            match term.right_child.clone() {
                 Some(rfactor) => {
                     print!("(");
                     print_term(&*lterm);
@@ -1020,9 +1038,9 @@ pub fn print_term (term : &Term) {
             }
         },
         None => {
-            match term.left_factor.clone() {
+            match term.left_child.clone() {
                     Some(lfactor) => {
-                        match term.right_factor.clone() {
+                        match term.right_child.clone() {
                             Some(rfactor) => {
                                 print!("(");
                                 print_factor(&(*lfactor));
@@ -1044,40 +1062,47 @@ pub fn print_term (term : &Term) {
 
 
 pub fn print_factor (factor : &Factor) {
-    match factor.unary.clone() {
-        Some(un) => {
-            print_unary(&*un);
+    match factor.postfix_unary.clone() {
+        Some(pf_un) => {
+            print_postfix_unary(&*pf_un);
         },
         None => {
-            match factor.exp.clone() {
-                Some(e) => {
-                    print_assignment(&*e);
+            match factor.unary.clone() {
+                Some(un) => {
+                    print_unary(&*un);
                 },
                 None => {
-                    match factor.val {
-                        Some(v) => {
-                            print!("{}", v);
+                    match factor.exp.clone() {
+                        Some(e) => {
+                            print_assignment(&*e);
                         },
                         None => {
-                            match factor.var.clone() {
+                            match factor.val {
                                 Some(v) => {
-                                    print!("{}", v.var_name);
+                                    print!("{}", v);
                                 },
-                                None => (),
+                                None => {
+                                    match factor.var.clone() {
+                                        Some(v) => {
+                                            print!("{}", v.var_name);
+                                        },
+                                        None => (),
+                                    }
+                                },
                             }
                         },
                     }
-                },
+                }
             }
-        }
+        },
     }
 }
 
 pub fn print_unary (unary : &Unary) {
    print!("{}(", unary.op);
-   match unary.right_fact.clone() {
-        Some(fact) => {
-            print_factor(&(*fact));
+   match unary.right_child.clone() {
+        Some(child) => {
+            print_factor(&(*child));
             print!(")");
         },
         None => {
@@ -1085,6 +1110,18 @@ pub fn print_unary (unary : &Unary) {
    }
 }
 
+pub fn print_postfix_unary (pf_unary : &PostFixUnary) {
+   match pf_unary.right_fact.clone() {
+        Some(fact) => {
+            print!("(");
+            print_factor(&(*fact));
+            print!(")");
+        },
+        None => {
+        },
+   }
+   print!("{}", pf_unary.op);
+}
 
 pub fn parse_program(token_vec : &mut Vec<lexer::Token>) -> Program {
     let mut result : Program = Program::new(); 
@@ -1215,6 +1252,11 @@ pub fn parse_declaration(token_vec : &mut Vec<lexer::Token>) -> Declaration {
     result
 }
 
+pub fn is_assignment_op(s : String) -> bool {
+    let op = vec!["=", "+=", "-=", "*=", "/=", "&=", "|=", "^=", ">>=", "<<=", "%="];
+    op.contains(&s.as_str())
+}
+
 pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
     let mut result : Assignment = Assignment::new();
     let tok : lexer::Token = peek_next_token(token_vec);
@@ -1222,15 +1264,16 @@ pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
         "Invalid assignment, saw: {}", tok.value);
     
     let mut next_tok = peek_two_tokens(&token_vec);
 
-    if (tok.name == "Identifier" && next_tok.value == "=") {
+    if (tok.name == "Identifier" && is_assignment_op(next_tok.value.clone())) {
 
         result.var = Some(Variable {var_name : tok.value.clone()});
-        while (next_tok.value == "=") {
+        while (is_assignment_op(next_tok.value.clone())) {
 
             token_vec.remove(0);
             token_vec.remove(0);
@@ -1258,8 +1301,13 @@ pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
 }
 
 pub fn valid_unary(s : String) -> bool {
-    let op = vec!["!", "~", "-", "+"]; // Cheated, "+" is binary but can be used as unary (adds 0) 
-    return op.contains(&(s.as_str()));
+    let op = vec!["!", "~", "-", "+", "++", "--"]; 
+    return op.contains(&(s.as_str()))
+}
+
+pub fn valid_postfix_unary(s : String) -> bool {
+    let op = vec!["++", "--"];
+    return op.contains(&(s.as_str()))
 }
 
 pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
@@ -1269,6 +1317,7 @@ pub fn parse_or_exp(token_vec : &mut Vec<lexer::Token>) -> OrExpression {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
            "Invalid or_exp, saw \"{}\" : \"{}\"...", tok.name, tok.value);
 
@@ -1304,6 +1353,7 @@ pub fn parse_and_exp(token_vec : &mut Vec<lexer::Token>) -> AndExpression {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier", "Invalid and_exp, saw {}.", tok.value);
 
     result.left_child = Some(Box::new(parse_bitwise_or(token_vec)));
@@ -1338,6 +1388,7 @@ pub fn parse_bitwise_or(token_vec : &mut Vec<lexer::Token>) -> BitOr {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
            "Invalid rel_exp: {}.", tok.value);
 
@@ -1375,6 +1426,7 @@ pub fn parse_bitwise_xor(token_vec : &mut Vec<lexer::Token>) -> BitXor {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
            "Invalid rel_exp: {}.", tok.value);
 
@@ -1412,6 +1464,7 @@ pub fn parse_bitwise_and(token_vec : &mut Vec<lexer::Token>) -> BitAnd {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
            "Invalid rel_exp: {}.", tok.value);
 
@@ -1449,6 +1502,7 @@ pub fn parse_equal_exp(token_vec : &mut Vec<lexer::Token>) -> EqualityExp {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
            "Invalid equal_exp: {}.", tok.value);
 
@@ -1485,6 +1539,7 @@ pub fn parse_rel_exp(token_vec : &mut Vec<lexer::Token>) -> RelationalExp {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
            "Invalid rel_exp: {}.", tok.value);
 
@@ -1522,6 +1577,7 @@ pub fn parse_bitwise_shift(token_vec : &mut Vec<lexer::Token>) -> BitShift {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
            "Invalid rel_exp: {}.", tok.value);
 
@@ -1560,46 +1616,12 @@ pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
+           valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier", 
            "Invalid add_exp: {}.", tok.value);
 
-    // Edge case for if there is no value to the right of the addition:
     result.left_term = Some(Box::new(parse_term(token_vec)));
-    if (tok.value == "+") {
-        match result.left_term.clone() {
-            Some(x) => {
-                match (&*x).left_term.clone() {
-                    Some(y) => (),
-                    None => {
-                        match (&*x).left_factor.clone() {
-                            None => (),
-                            Some (y) => {
-                                match (&*x).right_factor.clone() {
-                                    Some (y) => (),
-                                    None => {
-                                        result.left_term = Some(Box::new(Term{
-                                            op : String::new(),
-                                            left_term : None,
-                                            left_factor: Some(Box::new(Factor {
-                                                op : String::new(),
-                                                unary : None,
-                                                exp : None,
-                                                val : Some(0),
-                                                var : None,
-                                            })),
-                                            right_factor : None,
-                                        }));
-                                    }
-                                }
-                            },
-                        }
-                    },
-                }
-            },
-            None => (),
-        }
-    }
-    
+
     tok = peek_next_token(token_vec);
 
     while (tok.value == "-" || tok.value == "+") {
@@ -1621,7 +1643,6 @@ pub fn parse_add_exp(token_vec : &mut Vec<lexer::Token>) -> AdditiveExp {
         result.op = String::new();
     }
 
-
     result
 }
 
@@ -1632,9 +1653,11 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
     assert!(tok.name == "Num" ||
            tok.value == "(" ||
            valid_unary(tok.value.clone()) ||
-           tok.name == "Identifier", "Invalid term: {}.", tok.value);
+           valid_postfix_unary(tok.value.clone()) ||
+           tok.name == "Identifier", 
+           "Invalid term: {}.", tok.value);
 
-    result.left_factor = Some(Box::new(parse_factor(token_vec)));
+    result.left_child = Some(Box::new(parse_factor(token_vec)));
     tok = peek_next_token(token_vec);
 
     while (tok.value == "*" || tok.value == "/" || tok.value == "%") {
@@ -1648,19 +1671,19 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
             }
         }
         
-        result.right_factor = Some(Box::new(parse_factor(token_vec)));
+        result.right_child = Some(Box::new(parse_factor(token_vec)));
 
         tok = peek_next_token(token_vec);
          
         result.left_term = Some(Box::new(Term {
             op : result.op.clone(),
             left_term : result.left_term.clone(),
-            left_factor : result.left_factor.clone(),
-            right_factor : result.right_factor.clone(),
+            left_child : result.left_child.clone(),
+            right_child : result.right_child.clone(),
         }));
 
-        result.left_factor = None;
-        result.right_factor = None;            
+        result.left_child = None;
+        result.right_child = None;            
         result.op = String::new();
     }
 
@@ -1671,6 +1694,7 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
 pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
     let mut result : Factor = Factor::new();
     let mut tok : lexer::Token = peek_next_token(token_vec);
+
     
     if (tok.value == "(") {
         token_vec.remove(0);
@@ -1678,7 +1702,10 @@ pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
         tok = get_next_token(token_vec);
         assert!(tok.value==")", "Missing closing paren, saw {}.", tok.value);
     }
-    else if (String::from("~!-").contains(tok.value.as_str())) {
+    else if (tok.name == "Identifier" && valid_postfix_unary(peek_two_tokens(&token_vec.clone()).value.clone())) {
+        result.postfix_unary = Some(Box::new(parse_postfix_unary(token_vec)));
+    }
+    else if (valid_unary(tok.value.clone())) {
         result.unary = Some(Box::new(parse_unary(token_vec)));
     }
     else if (tok.name == "Num") {
@@ -1697,11 +1724,24 @@ pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
 
 pub fn parse_unary(token_vec : &mut Vec<lexer::Token>) -> Unary {
     let mut result : Unary = Unary::new();
-    let tok : lexer::Token = get_option_token(token_vec.first().cloned());
+    let tok : lexer::Token = get_next_token(token_vec);
 
     result.op = String::from(tok.value);
-    token_vec.remove(0);
+
+    result.right_child = Some(Box::new(parse_factor(token_vec)));
+
+    result
+}
+
+pub fn parse_postfix_unary(token_vec : &mut Vec<lexer::Token>) -> PostFixUnary {
+    let mut result : PostFixUnary = PostFixUnary::new();
+    let tok : lexer::Token = peek_next_token(token_vec);
+
+    result.op = peek_two_tokens(token_vec).value;
+    token_vec.remove(1);
+
     result.right_fact = Some(Box::new(parse_factor(token_vec)));
+
 
     result
 }

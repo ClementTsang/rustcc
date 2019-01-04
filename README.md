@@ -5,7 +5,7 @@ A basic C compiler written in Rust.  Inspired by [this post by Nora Sandler](htt
 Currently, rustcc supports the following features:
 * Unary operators (logical negation, bitwise complements, negation)
 * Binary operators (basic arithmetic, bitwise operations, comparisons)
-* Local variables (assignment, declaration, variable calling)
+* Local variables (assignment, declaration, variable calling, postfix and prefix incrementing)
 
 ## Installation
 To install, ensure beforehand that you have Rust and Cargo installed.  After that, clone the repository.  Then, run ``cargo build --release``.

@@ -794,7 +794,7 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
 
 fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
     let mut result = String::new();
-    match un.right_child.clone() {
+    match un.child.clone() {
         Some(fact) => {
             result.push_str(generate_factor(&*fact, var_map, stack_index).as_str());
             match un.op.as_str(){
@@ -815,7 +815,7 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                     // do nothing with it.
                 }
                 "++" => {
-                    match un.right_child.clone() {
+                    match un.child.clone() {
                         Some (un_var) => {
                             match un_var.var {
                                 Some(var) => {
@@ -841,7 +841,7 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                     }
                 },
                 "--" => {
-                    match un.right_child.clone() {
+                    match un.child.clone() {
                         Some (un_var) => {
                             match un_var.var {
                                 Some(var) => {

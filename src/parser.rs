@@ -120,12 +120,12 @@ pub struct Factor {
 
 pub struct Unary {
     pub op : String,
-    pub right_child : Option<Box<Factor>>,
+    pub child : Option<Box<Factor>>,
 }
 
 pub struct PostFixUnary {
     pub op : String,
-    pub right_child : Option<Box<Factor>>,
+    pub child : Option<Box<Factor>>,
 }
 
 impl Program { 
@@ -423,7 +423,7 @@ impl Unary {
     pub fn new() -> Unary {
         Unary {
             op : String::new(),
-            right_child : None,
+            child : None,
         }
     }
 }
@@ -432,7 +432,7 @@ impl PostFixUnary {
     pub fn new() -> PostFixUnary {
         PostFixUnary {
             op : String::new(),
-            right_child : None,
+            child : None,
         }
     }
 }
@@ -593,7 +593,7 @@ impl Clone for Unary {
     fn clone(&self) -> Self {
         Unary {
             op : self.op.clone(),
-            right_child : self.right_child.clone(),
+            child : self.child.clone(),
         }
     }
 }
@@ -602,7 +602,7 @@ impl Clone for PostFixUnary {
     fn clone(&self) -> Self {
         PostFixUnary {
             op : self.op.clone(),
-            right_child : self.right_child.clone(),
+            child : self.child.clone(),
         }
     }
 }
@@ -1104,7 +1104,7 @@ pub fn print_factor (factor : &Factor) {
 
 pub fn print_unary (unary : &Unary) {
    print!("{}(", unary.op);
-   match unary.right_child.clone() {
+   match unary.child.clone() {
         Some(child) => {
             print_factor(&(*child));
             print!(")");
@@ -1115,7 +1115,7 @@ pub fn print_unary (unary : &Unary) {
 }
 
 pub fn print_postfix_unary (pf_unary : &PostFixUnary) {
-   match pf_unary.right_child.clone() {
+   match pf_unary.child.clone() {
         Some(fact) => {
             print!("(");
             print_factor(&(*fact));
@@ -1731,7 +1731,7 @@ pub fn parse_unary(token_vec : &mut Vec<lexer::Token>) -> Unary {
     let tok : lexer::Token = get_next_token(token_vec);
 
     result.op = String::from(tok.value);
-    result.right_child = Some(Box::new(parse_factor(token_vec)));
+    result.child = Some(Box::new(parse_factor(token_vec)));
 
     result
 }
@@ -1744,7 +1744,7 @@ pub fn parse_postfix_unary(token_vec : &mut Vec<lexer::Token>, var_name : String
     result.op = peek_two_tokens(token_vec).value;
     token_vec.remove(1);
 
-    result.right_child = Some(Box::new(parse_factor(token_vec)));
+    result.child = Some(Box::new(parse_factor(token_vec)));
 
 
     result

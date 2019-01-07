@@ -1,5 +1,5 @@
 # rustcc - a Rust C compiler 
-A basic C compiler written in Rust.  Inspired by [this post by Nora Sandler](https://norasandler.com/2017/11/29/Write-a-Compiler.html).
+A basic C compiler written in Rust that compiles C code into x86 assembly.  Inspired by [this post by Nora Sandler](https://norasandler.com/2017/11/29/Write-a-Compiler.html).
 
 ## Features
 Currently, rustcc supports the following features:
@@ -8,7 +8,7 @@ Currently, rustcc supports the following features:
 * Local variables (assignment, declaration, variable calling, postfix and prefix incrementing)
 
 ## Installation
-To install, ensure beforehand that you have Rust and Cargo installed.  After that, clone the repository.  Then, run ``cargo build --release``.
+To install, ensure beforehand that you have [Rust and Cargo installed.](https://www.rust-lang.org/tools/install)  After that, clone the repository.  Then, run ``cargo build --release``.
 
 ## Usage
 To use the compiler, run the `rustcc` script as follows:

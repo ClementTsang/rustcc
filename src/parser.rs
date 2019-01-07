@@ -12,14 +12,19 @@ pub struct Program {
 pub struct Function {
     pub name : String,
     pub return_type : String,
-    pub list_of_st : Vec<Statement>,
+    pub list_of_blk : Vec<BlockItem>,
     pub params : Vec<String>,
+}
+
+pub struct BlockItem {
+    pub state : Option<Statement>, 
+    pub decl : Option<Declaration>,
 }
 
 pub struct Statement {
     pub name : String,
     pub exp : Option<Assignment>,
-    pub decl : Option<Declaration>,
+    pub _if : Option<If>,
 }
 
 pub struct Assignment {
@@ -37,6 +42,12 @@ pub struct Declaration {
 
 pub struct Variable {
     pub var_name : String,
+}
+
+pub struct If {
+    pub cond : Assignment,
+    pub state : Option<Box<Statement>>,
+    pub else_state : Option<Box<Statement>>,
 }
 
 pub struct OrExpression {
@@ -141,8 +152,17 @@ impl Function {
         Function {
             name : String::new(),
             return_type : String::new(),
-            list_of_st : Vec::new(),
+            list_of_blk : Vec::new(),
             params : Vec::new(),
+        }
+    }
+}
+
+impl BlockItem {
+    pub fn new () -> BlockItem {
+        BlockItem {
+            state : None,
+            decl : None,
         }
     }
 }
@@ -152,7 +172,7 @@ impl Statement {
         Statement {
             name : String::new(),
             exp : None,
-            decl : None,
+            _if : None,
         }
     }
 }
@@ -184,13 +204,22 @@ impl Declaration {
             var_type : String::new(),
         }
     }
-    
 }
 
 impl Variable {
     pub fn new() -> Variable {
         Variable {
             var_name : String::new(),
+        }
+    }
+}
+
+impl If {
+    pub fn new() -> If {
+        If {
+            cond : Assignment::new(),
+            state : None,
+            else_state : None,
         }
     }
 }
@@ -444,6 +473,16 @@ impl PostFixUnary {
     }
 }
 
+impl Clone for Statement {
+    fn clone(&self) -> Self {
+        Statement {
+            _if : self._if.clone(),
+            exp : self.exp.clone(),
+            name : self.name.clone(),
+        }
+    }
+}
+
 impl Clone for Variable {
     fn clone(&self) -> Self {
         Variable {
@@ -469,6 +508,25 @@ impl Clone for Assignment {
             assign : self.assign.clone(),
             exp : self.exp.clone(),
             op : self.op.clone(),
+        }
+    }
+}
+
+impl Clone for If {
+    fn clone(&self) -> Self {
+        If {
+            cond : self.cond.clone(),
+            state : self.state.clone(),
+            else_state : self.else_state.clone(),
+        }
+    }
+}
+
+impl Clone for BlockItem {
+    fn clone(&self) -> Self {
+        BlockItem {
+            state : self.state.clone(),
+            decl : self.decl.clone(),
         }
     }
 }
@@ -625,34 +683,67 @@ pub fn print_ast (input_prog : &Program) {
     println!(")");
     println!("     body:");
    
-    for st in &input_prog.fnc.list_of_st {
-        print!("          {} ", st.name);
-        match st.exp.clone() {
+    for bl_item in &input_prog.fnc.list_of_blk {
+        match bl_item.state.clone() {
             Some (x) => {
+                print!("          {} ", x.name);
                 print!("[ ");
-                print_assignment(&x);
+                print_statement(&x);
                 println!(" ]");
             },
-            None => {                    
-                match st.decl.clone() {
-                    Some (x) => {
-                        print!("[ ");
-                        print_declaration(&x);
-                        println!(" ]");
-                    },
-                    None => (),
-                }
+            None => (),
+        }
+
+        match bl_item.decl.clone() {
+            Some(x) => {
+                print!("          if ");
+                print!("[ ");
+                print_declaration(&x);
+                print!(" ]");                
             },
+            None => (),
         }
     }
     
     println!("=====END AST PRINT=====");
 }
 
+pub fn print_statement (state : &Statement) {
+    match state.exp.clone() {
+        Some(y) => print_assignment(&y),
+        None => {
+            match state._if.clone() {
+                Some (y) => print_if(&y),
+                None => (),
+            }
+        },
+    }    
+}
+
+pub fn print_if (if_exp : &If) {
+    print!("if (");
+    print_assignment(&if_exp.cond);
+    print!(") {{\n");
+
+    match if_exp.state.clone() {
+        Some(x) => print_statement(&*x),
+        None => (),
+    }
+    print!("}}");
+
+    match if_exp.else_state.clone() {
+        Some(x) => {
+            print!("else {{\n");
+            print_statement(&*x);
+            print!("}}");
+        },
+        None => (),
+    }
+}
+
 pub fn print_declaration (decl : &Declaration) {
     print!("{} {} = ", decl.var_type, decl.var.var_name);
     print_assignment(&decl.exp);
-
 }
 
 pub fn print_assignment (exp : &Assignment) {
@@ -1178,7 +1269,7 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     let mut result : Function  = Function::new();
     let mut tok : lexer::Token = get_next_token(token_vec);
 
-    assert!(tok.name == "Keyword", "Invalid keyword");
+    assert!(tok.name == "Type", "Invalid type, saw {}", tok.name);
     result.return_type = tok.value;
     
     tok = get_next_token(token_vec);
@@ -1194,9 +1285,9 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     tok = get_next_token(token_vec);
     assert!(tok.name == "Punc" && tok.value == "{", "Invalid punc. (\"{\")");
 
-    // Statement check
+    // Block check
     while (peek_two_tokens(token_vec).value != "EOF" && peek_two_tokens(token_vec).name != "EOF TOKEN") {
-        result.list_of_st.push(parse_statement(token_vec));
+        result.list_of_blk.push(parse_block_item(token_vec));
     }
 
     tok = get_next_token(token_vec);
@@ -1205,6 +1296,20 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     result
 }
 
+
+pub fn parse_block_item(token_vec : &mut Vec<lexer::Token>) -> BlockItem {
+    let mut result : BlockItem = BlockItem::new();
+    let tok : lexer::Token = peek_next_token(token_vec);
+
+    if (tok.name=="Type") {
+        result.decl = Some(parse_declaration(token_vec));
+    }
+    else {
+        result.state = Some(parse_statement(token_vec));
+    }
+
+    result
+}
 
 
 pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
@@ -1219,24 +1324,47 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     // Get expression
 
     // Modify this statement based on expression/tok values
-    if (tok.value == "return") {
-        result.name = String::from("return");
-        token_vec.remove(0);
-        result.exp = Some(parse_assign(token_vec));
-    }
-    else if (tok.name == "Keyword") {
-        result.name = String::from("declare");
-        result.decl = Some(parse_declaration(token_vec));
+    if (tok.name == "Keyword") {
+        if (tok.value == "if") {
+            result.name = String::from("if");
+            result._if = Some(parse_if(token_vec));
+        }
+        else if (tok.value == "return") {
+            result.name = String::from("return");
+            token_vec.remove(0);
+            result.exp = Some(parse_assign(token_vec));
+
+            tok = get_next_token(token_vec);
+            assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
+        }
     }
     else {
         result.name = String::from("exp");
         result.exp = Some(parse_assign(token_vec));
+
+        tok = get_next_token(token_vec);
+        assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
+    
     }
 
-    tok = get_next_token(token_vec);
+    result
+}
 
-    assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
-    
+pub fn parse_if(token_vec : &mut Vec<lexer::Token>) -> If {
+    let mut result : If = If::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    token_vec.remove(0);
+    result.cond = parse_assign(token_vec);
+    result.state = Some(Box::new(parse_statement(token_vec)));
+ 
+    tok = peek_next_token(token_vec);
+    if (tok.value == "else") {
+        token_vec.remove(0);
+        result.else_state = Some(Box::new(parse_statement(token_vec)));
+    }
+
+
     result
 }
 
@@ -1244,7 +1372,7 @@ pub fn parse_declaration(token_vec : &mut Vec<lexer::Token>) -> Declaration {
     let mut result : Declaration = Declaration::new();
     let mut tok : lexer::Token = peek_next_token(token_vec);
 
-    assert!(tok.name == "Keyword" && 
+    assert!(tok.name == "Type" && 
             (tok.value == "int"), 
             "Invalid declaration, saw: {}", tok.value);
 
@@ -1262,6 +1390,9 @@ pub fn parse_declaration(token_vec : &mut Vec<lexer::Token>) -> Declaration {
         // Default to zero.
         result.exp = Assignment::set_to_zero();
     }
+
+    tok = get_next_token(token_vec);
+    assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
 
     result
 }

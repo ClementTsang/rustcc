@@ -32,11 +32,23 @@ fn generate_function(func : &parser::Function) -> String {
 
     let mut is_return_there = false;
 
-    for st in &func.list_of_st {
-        if (st.name == "return") {
-            is_return_there = true;
+    for blk in &func.list_of_blk {
+        match blk.state.clone() {
+            Some (x) => {
+                if (x.name == "return") {
+                    is_return_there = true;
+                }
+                result.push_str(generate_statement(&x, &mut var_map, &mut stack_index).as_str());
+            },
+            None => {
+                match blk.decl.clone() {
+                    Some (y) => {
+                        result.push_str(generate_declaration(&y, &mut var_map, &mut stack_index).as_str());
+                    },
+                    None => (),
+                }
+            },
         }
-        result.push_str(generate_statement(&st, &mut var_map, &mut stack_index).as_str());
     }
     
     if (!is_return_there) {
@@ -57,14 +69,38 @@ fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i3
             result.push_str(generate_assignment(&x, var_map, stack_index).as_str());
         },
         None => {
-            match st.decl.clone() {
+            match st._if.clone() {
                 Some (x) => {
-                    result.push_str(generate_declaration(&x, var_map, stack_index).as_str());
+                    result.push_str(generate_if(&x, var_map, stack_index).as_str());
                 },
                 None => (),
             }
         },
     }
+    result
+}
+
+fn generate_if(if_exp : &parser::If, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+
+    // TO DO - BRANCH LOGIC
+    result.push_str(generate_assignment(&if_exp.cond, var_map, stack_index).as_str());
+    match if_exp.state.clone() {
+        Some (x) => {
+            // ...todo
+            result.push_str(generate_statement(&*x, var_map, stack_index).as_str());
+        },
+        None => (),
+    }
+
+    match if_exp.else_state.clone() {
+        Some (x) => {
+            // ...todo
+            result.push_str(generate_statement(&*x, var_map, stack_index).as_str());
+        },
+        None => (),
+    }
+
     result
 }
 

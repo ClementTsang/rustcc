@@ -38,7 +38,7 @@ pub fn is_punctuation (c : char) -> bool {
 }
 
 pub fn is_op (c : char) -> bool {
-    let op = "-~!+*/%&|^";
+    let op = "-~!+*/%&|^?:";
     op.contains(c)
 }
 
@@ -72,7 +72,8 @@ pub fn is_assign_op (c : char) -> bool {
 }
 
 pub fn read_identifier (input : &mut String) -> Token {
-    let keywords = vec!["int", "return"];
+    let keywords = vec!["return", "if", "else"];
+    let types = vec!["int"];
 
 
     let mut iden_name = String::new();
@@ -89,6 +90,9 @@ pub fn read_identifier (input : &mut String) -> Token {
 
     if (keywords.contains(&&*iden_name)) {
         Token {name : String::from("Keyword"), value : iden_name}
+    }
+    else if (types.contains(&&*iden_name)) {
+        Token {name: String::from("Type"), value : iden_name}
     }
     else {
         Token {name : String::from("Identifier"), value : iden_name}

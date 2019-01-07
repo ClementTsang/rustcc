@@ -30,8 +30,14 @@ pub struct Statement {
 pub struct Assignment {
     pub var : Option<Variable>,
     pub assign : Option<Box<Assignment>>,
-    pub exp : Option<OrExpression>,
+    pub exp : Option<ConditionalExp>,
     pub op : String,
+}
+
+pub struct ConditionalExp {
+    pub exp : OrExpression,
+    pub true_exp : Option<Box<Assignment>>,
+    pub false_exp : Option<Box<ConditionalExp>>,
 }
 
 pub struct Declaration {
@@ -190,7 +196,7 @@ impl Assignment {
         Assignment {
             var : None,
             assign : None,
-            exp : Some(OrExpression::set_to_zero()),
+            exp : Some(ConditionalExp::set_to_zero()),
             op : String::new(),
         }
     }
@@ -220,6 +226,24 @@ impl If {
             cond : Assignment::new(),
             state : None,
             else_state : None,
+        }
+    }
+}
+
+impl ConditionalExp {
+    pub fn new() -> ConditionalExp {
+        ConditionalExp {
+            exp : OrExpression::new(),
+            true_exp : None,
+            false_exp : None,
+        }
+    }
+
+    pub fn set_to_zero() -> ConditionalExp {
+        ConditionalExp {
+            exp : OrExpression::set_to_zero(),
+            true_exp : None,
+            false_exp : None,
         }
     }
 }
@@ -512,6 +536,16 @@ impl Clone for Assignment {
     }
 }
 
+impl Clone for ConditionalExp {
+    fn clone(&self) -> Self {
+        ConditionalExp {
+            exp : self.exp.clone(),
+            true_exp : self.true_exp.clone(),
+            false_exp : self.false_exp.clone(),
+        }
+    }    
+}
+
 impl Clone for If {
     fn clone(&self) -> Self {
         If {
@@ -699,7 +733,7 @@ pub fn print_ast (input_prog : &Program) {
                 print!("          if ");
                 print!("[ ");
                 print_declaration(&x);
-                print!(" ]");                
+                print!(" ]\n");                
             },
             None => (),
         }
@@ -762,12 +796,27 @@ pub fn print_assignment (exp : &Assignment) {
             match exp.exp.clone() {
                 Some(exp) => {
                     print!("(");
-                    print_or(&exp);
+                    print_cond_exp(&exp);
                     print!(")");
                 },
                 None => ()
             }
         },
+    }
+}
+
+
+pub fn print_cond_exp(cond_exp : &ConditionalExp) {
+    print_or(&cond_exp.exp);
+
+    match cond_exp.true_exp.clone() {
+        Some(x) => print_assignment(&*x),
+        None => (),
+    }
+
+    match cond_exp.false_exp.clone() {
+        Some(x) => print_cond_exp(&*x),
+        None => (),
     }
 }
 
@@ -1425,7 +1474,7 @@ pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
             token_vec.remove(0);
             token_vec.remove(0);
 
-            result.exp = Some(parse_or_exp(token_vec));
+            result.exp = Some(parse_cond(token_vec));
             
             result.assign = Some(Box::new(Assignment {
                 var : result.var.clone(),
@@ -1442,7 +1491,25 @@ pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
     }
     else {
         // Not an assignment, move on.
-        result.exp = Some(parse_or_exp(token_vec));
+        result.exp = Some(parse_cond(token_vec));
+    }
+
+    result
+}
+
+pub fn parse_cond(token_vec : &mut Vec<lexer::Token>) -> ConditionalExp {
+    let mut result : ConditionalExp = ConditionalExp::new();
+
+    result.exp = parse_or_exp(token_vec);
+
+    if (peek_next_token(token_vec).value == "?") {
+        token_vec.remove(0);
+        result.true_exp = Some(Box::new(parse_assign(token_vec)));
+
+        assert!(peek_next_token(token_vec).value == ":", "Ternary missing \":\", saw {}", peek_next_token(token_vec).value);
+
+        token_vec.remove(0);
+        result.false_exp = Some(Box::new(parse_cond(token_vec)));
     }
 
     result

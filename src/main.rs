@@ -132,7 +132,7 @@ fn generate_assignment(assign_exp : &parser::Assignment, var_map : &mut HashMap<
         None => {
             match assign_exp.exp.clone() {
                 Some(exp) => {
-                    result.push_str(generate_or_expr(&exp, var_map, stack_index).as_str());
+                    result.push_str(generate_cond_exp(&exp, var_map, stack_index).as_str());
                 },
                 None => ()
             }
@@ -198,6 +198,24 @@ fn generate_assignment(assign_exp : &parser::Assignment, var_map : &mut HashMap<
                 None => (),
             }
         },
+        None => (),
+    }
+
+    result
+}
+
+fn generate_cond_exp(cond_exp : &parser::ConditionalExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32) -> String {
+    let mut result = String::new();
+
+    result.push_str(generate_or_expr(&cond_exp.exp, var_map, stack_index).as_str());
+
+    match cond_exp.true_exp.clone() {
+        Some(x) => result.push_str(generate_assignment(&x, var_map, stack_index).as_str()),
+        None => (),
+    }
+
+    match cond_exp.false_exp.clone() {
+        Some(x) => result.push_str(generate_cond_exp(&x, var_map, stack_index).as_str()),
         None => (),
     }
 
@@ -832,12 +850,12 @@ fn is_a_var (assign : &parser::Assignment, var_name : &mut String) -> bool {
     let mut result : bool = false;
 
     match assign.exp.clone() {
-        Some (or_exp) => {
-            match or_exp.right_and_exp.clone() {
+        Some (cond_exp) => {
+            match cond_exp.exp.right_and_exp.clone() {
                 Some (x) => return false,
                 None => (),
             }
-            match or_exp.left_and_exp.clone() {
+            match cond_exp.exp.left_and_exp.clone() {
                 Some (and_exp) => {
                     match and_exp.right_child.clone() {
                         Some (x) => return false,

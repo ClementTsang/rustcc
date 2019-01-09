@@ -33,14 +33,14 @@ test_compile_run() {
     fi
 
     run_total_count=$((run_total_count+1))
-    ${1%.*} > /dev/null
+    "./${1%.*}" > /dev/null
     ret_val="$?"
     if [ -e "${1%.*}" ]; then
         rm "${1%.*}"
     fi
 
     gcc -m32 "${1%.*}.c" -o "${1%.*}" > /dev/null
-    ${1%.*} > /dev/null
+    "./${1%.*}" > /dev/null
 
     actual_val="$?"
     if [ ${actual_val} -eq ${ret_val} ]; then

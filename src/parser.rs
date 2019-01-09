@@ -730,7 +730,7 @@ pub fn print_ast (input_prog : &Program) {
 
         match bl_item.decl.clone() {
             Some(x) => {
-                print!("          if ");
+                print!("          decl ");
                 print!("[ ");
                 print_declaration(&x);
                 print!(" ]\n");                
@@ -755,21 +755,23 @@ pub fn print_statement (state : &Statement) {
 }
 
 pub fn print_if (if_exp : &If) {
-    print!("if (");
     print_assignment(&if_exp.cond);
-    print!(") {{\n");
+    print!(" {{\n             ");
 
     match if_exp.state.clone() {
-        Some(x) => print_statement(&*x),
+        Some(x) => {
+            print!("{}", x.name);
+            print_statement(&*x)
+        },
         None => (),
     }
-    print!("}}");
+    print!("\n          }}\n");
 
     match if_exp.else_state.clone() {
         Some(x) => {
-            print!("else {{\n");
+            print!("          else {{\n            {}", x.name);
             print_statement(&*x);
-            print!("}}");
+            print!("\n          }}");
         },
         None => (),
     }
@@ -810,14 +812,20 @@ pub fn print_cond_exp(cond_exp : &ConditionalExp) {
     print_or(&cond_exp.exp);
 
     match cond_exp.true_exp.clone() {
-        Some(x) => print_assignment(&*x),
+        Some(x) => {
+            match cond_exp.false_exp.clone() {
+                Some(y) => {
+                    print!(" ? ");
+                    print_assignment(&*x);
+                    print!(" : ");
+                    print_cond_exp(&*y);
+                },
+                None => (),
+            }
+        },
         None => (),
     }
 
-    match cond_exp.false_exp.clone() {
-        Some(x) => print_cond_exp(&*x),
-        None => (),
-    }
 }
 
 

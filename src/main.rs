@@ -98,10 +98,10 @@ fn generate_if(if_exp : &parser::If, var_map : &mut HashMap<String, i32>, stack_
     
     match if_exp.state.clone() {
         Some (x) => {
-            result.push_str("    cmpl     $0, %eax # Starting if\n");
+            result.push_str("    cmpl     $0, %eax\n");
             *fn_index += 1;
             let if_index = *fn_index;
-            result.push_str(format!("    je       {}{}\n", IF_FN, fn_index).as_str());
+            result.push_str(format!("    je       {}{} # Jump to else condition\n", IF_FN, fn_index).as_str());
             result.push_str(generate_statement(&*x, var_map, stack_index, fn_index, jump_map).as_str());
 
             match if_exp.else_state.clone() {
@@ -525,7 +525,7 @@ fn generate_eq_rchild(expr : &parser::EqualityExp, rchild : &parser::RelationalE
     result.push_str(generate_rel_expr(&*rchild, var_map, stack_index, fn_index, jump_map).as_str());
     result.push_str("    popl     %ecx\n");
     result.push_str("    cmpl     %eax, %ecx\n");
-    result.push_str("    movl     %ecx, %eax\n");
+    result.push_str("    movl     $0, %eax\n");
 
     match expr.op.as_str() {
         "==" => {
@@ -587,7 +587,7 @@ fn generate_rel_rchild(expr : &parser::RelationalExp, rchild : &parser::BitShift
     result.push_str(generate_bit_shift(&*rchild, var_map, stack_index, fn_index, jump_map).as_str());
     result.push_str("    popl     %ecx\n");
     result.push_str("    cmpl     %eax, %ecx\n");
-    result.push_str("    movl     %ecx, %eax\n");
+    result.push_str("    movl     $0, %eax\n");
 
     match expr.op.as_str() {
         "<" => {
@@ -878,7 +878,7 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
                                             let var_offset = var_map.get(&(va.var_name.clone()));
                                             match var_offset {
                                                 Some (offset) => { 
-                                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference\n", offset).as_str());
+                                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for {}\n", offset, va.var_name.clone()).as_str());
                                                 },
                                                 None => (),
                                             }

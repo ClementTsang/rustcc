@@ -6,6 +6,8 @@ Currently, rustcc supports the following features:
 * Unary operators (logical negation, bitwise complements, negation)
 * Binary operators (basic arithmetic, bitwise operations, comparisons)
 * Local variables (assignment, declaration, variable calling, postfix and prefix incrementing)
+* If-else branching
+* Ternary operator
 
 ## Installation
 To install, ensure beforehand that you have [Rust and Cargo installed.](https://www.rust-lang.org/tools/install)  After that, clone the repository.  Then, run ``cargo build --release``.

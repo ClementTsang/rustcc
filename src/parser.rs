@@ -21,8 +21,13 @@ pub struct BlockItem {
     pub decl : Option<Declaration>,
 }
 
+pub struct Compound {
+    pub list_of_blk : Vec<BlockItem>,
+}
+
 pub struct Statement {
     pub name : String,
+    pub compound : Option<Compound>,
     pub exp : Option<Assignment>,
     pub _if : Option<If>,
 }
@@ -173,10 +178,19 @@ impl BlockItem {
     }
 }
 
+impl Compound {
+    pub fn new () -> Compound {
+        Compound {
+            list_of_blk : Vec::new(),
+        }
+    }    
+}
+
 impl Statement {
     pub fn new () -> Statement {
         Statement {
             name : String::new(),
+            compound : None,
             exp : None,
             _if : None,
         }
@@ -497,10 +511,19 @@ impl PostFixUnary {
     }
 }
 
+impl Clone for Compound {
+    fn clone(&self) -> Self {
+        Compound {
+            list_of_blk : self.list_of_blk.clone(),
+        }
+    }
+}
+
 impl Clone for Statement {
     fn clone(&self) -> Self {
         Statement {
             _if : self._if.clone(),
+            compound: self.compound.clone(),
             exp : self.exp.clone(),
             name : self.name.clone(),
         }
@@ -1369,6 +1392,25 @@ pub fn parse_block_item(token_vec : &mut Vec<lexer::Token>) -> BlockItem {
 }
 
 
+pub fn parse_compound(token_vec : &mut Vec<lexer::Token>) -> Compound {
+    let mut result : Compound = Compound::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.name == "Punc" && tok.value == "{", "Invalid cmpd punc: (\"{\")");
+    token_vec.remove(0);
+    tok = peek_next_token(token_vec);
+
+    while (!(tok.name == "Punc" && tok.value == "}")) {
+        result.list_of_blk.push(parse_block_item(token_vec));
+        tok = peek_next_token(token_vec);
+    }
+
+    assert!(tok.name == "Punc" && tok.value == "}", "Invalid cmpd punc: (\"}\")");
+    token_vec.remove(0);
+    result
+}
+
+
 pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
     let mut result : Statement = Statement::new();
     let mut tok : lexer::Token = peek_next_token(token_vec);
@@ -1394,6 +1436,9 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
             tok = get_next_token(token_vec);
             assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
         }
+    }
+    else if (tok.name == "Punc" && tok.value == "{") {
+        result.compound = Some(parse_compound(token_vec));
     }
     else {
         result.name = String::from("exp");

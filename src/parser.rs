@@ -1051,16 +1051,127 @@ pub fn print_ast (input_prog : &Program) {
     println!("=====END AST PRINT=====");
 }
 
+pub fn print_while (input_while : &While) {
+    print!("while");
+    print_assignment(&input_while.exp);
+    print!("\n            {{\n");
+    print_statement(&input_while.statement);
+    print!("\n            }}")
+}
+
+pub fn print_do (input_do : &DoWhile) {
+    print!("do");
+    print!("\n            {{\n");
+    print_statement(&input_do.statement);
+    print!("\n            }}");
+    print!("while");
+    print_assignment(&input_do.exp);
+    print!("\n");
+}
+
+pub fn print_for (input_for : &For) {
+    print!("for (");
+    match (input_for.optional_exp_1.clone()) {
+        Some (x) => print_assignment(&x),
+        None => (),
+    }
+    print!(" ; ");
+    print_assignment(&input_for.exp);
+    print!(" ; ");
+    match (input_for.optional_exp_2.clone()) {
+        Some (x) => print_assignment(&x),
+        None => (),
+    }
+    print!(") {{\n");
+
+    print_statement(&input_for.statement);
+
+    print!("}}\n");
+}
+
+pub fn print_for_decl (input_for_decl : &ForDecl) {
+    print!("for (");
+    
+    print_declaration(&input_for_decl.decl);
+    print!(" ; ");
+    print_assignment(&input_for_decl.exp);
+    print!(" ; ");
+    match (input_for_decl.optional_exp_2.clone()) {
+        Some (x) => print_assignment(&x),
+        None => (),
+    }
+    print!(") {{\n");
+
+    print_statement(&input_for_decl.statement);
+
+    print!("}}\n");
+}
+
+pub fn print_continue (input_cont : &Continue) {
+    print!("continue");
+}
+
+pub fn print_break (input_break : &Break) {
+    print!("break");
+}
+
+pub fn print_compound(cmpd : &Compound) {
+    for blk in &cmpd.list_of_blk {
+        match blk.state.clone() {
+            Some (x) => {
+                print!("            ");
+                print_statement(&x);
+            },
+            None => {
+                match blk.decl.clone() {
+                    Some (y) => {
+                        print!("            ");
+                        print_declaration(&y)
+                    },
+                    None => (),
+                }
+            },
+        }
+    }
+}
+
 pub fn print_statement (state : &Statement) {
     match state.exp.clone() {
         Some(y) => print_assignment(&y),
-        None => {
-            match state._if.clone() {
-                Some (y) => print_if(&y),
-                None => (),
-            }
-        },
+        None => (),
     }    
+    match state._if.clone() {
+        Some (y) => print_if(&y),
+        None => (),
+    }
+    match state.compound.clone() {
+        Some (y) => print_compound(&y),
+        None => (),
+    }
+    match state._while.clone() {
+        Some (y) => print_while(&y),
+        None => (),
+    }
+    match state._for.clone() {
+        Some (y) => print_for(&y),
+        None => (),
+    }
+    match state._for_decl.clone() {
+        Some (y) => print_for_decl(&y),
+        None => (),
+    }
+    match state._do.clone() {
+        Some (y) => print_do(&y),
+        None => (),
+    }
+    match state._continue.clone() {
+        Some (y) => print_continue(&y),
+        None => (),
+    }
+    match state._break.clone() {
+        Some (y) => print_break(&y),
+        None => (),
+    }
 }
 
 pub fn print_if (if_exp : &If) {
@@ -1721,7 +1832,6 @@ pub fn parse_while(token_vec : &mut Vec<lexer::Token>) -> While {
     tok = peek_next_token(token_vec);
     assert!(tok.value == ")", "missing ) in while, saw {}", tok.value);
     token_vec.remove(0);
-
     result.statement = Box::new(parse_statement(token_vec));
 
     result

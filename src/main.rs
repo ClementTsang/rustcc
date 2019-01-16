@@ -143,11 +143,11 @@ fn generate_do(loop_type : &parser::DoWhile, var_map : &mut HashMap<String, i32>
     *fn_index += 1;
     let after_index = *fn_index;
     result.push_str(generate_statement(&*loop_type.statement, var_map, stack_index, fn_index, cur_map).as_str());
-    result.push_str(format!("    jmp      {}{}\n", LOOP, do_index).as_str());
 
     result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map).as_str());
     result.push_str("    cmpl     $0, %eax\n");
     result.push_str(format!("    je       {}{}\n", POST_LOOP, after_index).as_str());
+    result.push_str(format!("    jmp      {}{}\n", LOOP, do_index).as_str());
 
     result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
 

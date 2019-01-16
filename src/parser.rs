@@ -1978,6 +1978,11 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
         }
         else if (tok.value == "break" || tok.value == "continue") {
             result.name = tok.value.clone();
+            match tok.value.as_str() {
+                "break" => result._break = Some(Break::new()),
+                "continue" => result._continue = Some(Continue::new()),
+                _ => (),
+            }
             token_vec.remove(0);
         }
     }

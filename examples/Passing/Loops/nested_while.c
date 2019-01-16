@@ -2,11 +2,11 @@ int main() {
     int a = 5;
     int b = 10;
     while (a < 100) {
-        printf("A: %d, %d\n", a, b);
+        while (b < 100) {
             a += 5;
             b += a;
         }
-        a += 1;
+        a += b;
     }
     return a + b;
 }

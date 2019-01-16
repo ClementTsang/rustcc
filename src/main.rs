@@ -16,6 +16,8 @@ use std::collections::HashMap;
 
 static IF_FN : &str = "if_fn";
 static ELSE_FN : &str = "else_fn";
+static LOOP : &str = "loop";
+static POST_LOOP : &str = "post_loop";
 
 
 fn print_assembly(input : &String){
@@ -90,8 +92,59 @@ fn generate_compound(cmp : &parser::Compound, var_map : &mut HashMap<String, i32
     result
 }
 
+
+fn generate_while(loop_type : &parser::While, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+    let mut result = String::new();
+
+    *fn_index += 1;
+    let while_index = *fn_index;
+    result.push_str(format!("\n{}{}:\n", LOOP, while_index).as_str());
+    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str("    cmpl     $0, %eax\n");
+
+    *fn_index += 1;
+    let after_index = *fn_index;
+    result.push_str(format!("    je       {}{}\n", POST_LOOP, after_index).as_str());
+    result.push_str(generate_statement(&*loop_type.statement, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(format!("    jmp      {}{}\n", LOOP, while_index).as_str());
+
+    result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
+
+    result
+}
+
+
+fn generate_for(loop_type : &parser::For, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+    let mut result = String::new();
+
+    result
+}
+
+
+fn generate_for_decl(loop_type : &parser::ForDecl, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+    let mut result = String::new();
+    let mut cur_map : HashMap<String, i32> = HashMap::new();
+
+    result
+}
+
+
+fn generate_do(loop_type : &parser::DoWhile, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+    let mut result = String::new();
+
+    result
+}
+
+
+
+
 fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
     let mut result = String::new();
+
+    if (st.name == "empty") {
+        return result;
+    }
+
     match st.exp.clone() {
         Some(x) => {
             result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, cur_map).as_str());
@@ -101,22 +154,49 @@ fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i3
                 result.push_str("    ret\n");
             }
         },
-        None => {
-            match st._if.clone() {
-                Some (x) => {
-                    result.push_str(generate_if(&x, var_map, stack_index, fn_index, cur_map).as_str());
-                },
-                None => {
-                    match st.compound.clone() {
-                        Some (x) => {
-                            result.push_str(generate_compound(&x, var_map, stack_index, fn_index, cur_map).as_str());
-                        }
-                        None => (),
-                    }
-                },
-            }
-        },
+        None => (),
     }
+
+    match st._if.clone() {
+        Some (x) => {
+            result.push_str(generate_if(&x, var_map, stack_index, fn_index, cur_map).as_str());
+        },
+        None => (),
+    }
+
+    match st.compound.clone() {
+        Some (x) => {
+            result.push_str(generate_compound(&x, var_map, stack_index, fn_index, cur_map).as_str());
+        }
+        None => (),
+    }
+
+    // Loops
+    match st._while.clone() {
+        Some (y) => result.push_str(generate_while(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        None => (),
+    }
+    match st._for.clone() {
+        Some (y) => result.push_str(generate_for(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        None => (),
+    }
+    match st._for_decl.clone() {
+        Some (y) => result.push_str(generate_for_decl(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        None => (),
+    }
+    match st._do.clone() {
+        Some (y) => result.push_str(generate_do(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        None => (),
+    }
+    match st._continue.clone() {
+        Some (y) => (),
+        None => (),
+    }
+    match st._break.clone() {
+        Some (y) => (),
+        None => (),
+    }
+
     result
 }
 

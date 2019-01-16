@@ -2560,6 +2560,14 @@ pub fn parse_postfix_unary(token_vec : &mut Vec<lexer::Token>, factor : Factor) 
     result
 }
 
+pub fn print_tokens(token_vec : &Vec<lexer::Token>) {
+    println!("=====Resulting tokens=====");
+    for token in &*token_vec {
+        println!("Token: {}", token);
+    }
+    println!("=====End of tokens=====");
+}
+
 pub fn parse_to_ast(filename : &String) -> Program {
     // Take in file.
     let mut file_contents = fs::read_to_string(filename).expect("Could not read file.");
@@ -2568,15 +2576,11 @@ pub fn parse_to_ast(filename : &String) -> Program {
 
     // Convert to tokens
     let mut token_vec : Vec<lexer::Token> = lexer::lexer(&mut file_contents);
-    println!("=====Resulting tokens=====");
-    for token in &token_vec {
-        println!("Token: {}", token);
-    }
-    println!("=====End of tokens=====");
+    //print_tokens(&token_vec);
 
     // Parse tokens into AST
     let result_ast : Program = parse_program(&mut token_vec); 
-    print_ast(&result_ast);
+    //print_ast(&result_ast);
 
     result_ast
 }

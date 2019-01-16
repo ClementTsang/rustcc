@@ -72,7 +72,7 @@ pub fn is_assign_op (c : char) -> bool {
 }
 
 pub fn read_identifier (input : &mut String) -> Token {
-    let keywords = vec!["return", "if", "else"];
+    let keywords = vec!["return", "if", "else", "for", "while", "do", "break", "continue"];
     let types = vec!["int"];
 
 

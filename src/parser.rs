@@ -25,11 +25,49 @@ pub struct Compound {
     pub list_of_blk : Vec<BlockItem>,
 }
 
+pub struct For {
+    pub optional_exp_1 : Option<Assignment>,
+    pub exp : Assignment,
+    pub optional_exp_2 : Option<Assignment>,
+    pub statement : Box<Statement>,
+}
+
+pub struct ForDecl {
+    pub decl : Declaration,
+    pub exp : Assignment,
+    pub optional_exp_2 : Option<Assignment>,
+    pub statement : Box<Statement>,
+}
+
+pub struct While {
+    pub exp : Assignment,
+    pub statement : Box<Statement>,
+}
+
+pub struct DoWhile {
+    pub statement : Box<Statement>,
+    pub exp : Assignment,
+}
+
+pub struct Break {
+    // Empty
+}
+
+pub struct Continue {
+    // Empty
+}
+
 pub struct Statement {
     pub name : String,
     pub compound : Option<Compound>,
     pub exp : Option<Assignment>,
     pub _if : Option<If>,
+    pub _for : Option<For>,
+    pub _for_decl : Option<ForDecl>,
+    pub _while : Option<While>,
+    pub _do : Option<DoWhile>,
+    pub _break : Option<Break>,
+    pub _continue : Option<Continue>,
 }
 
 pub struct Assignment {
@@ -186,6 +224,62 @@ impl Compound {
     }    
 }
 
+impl For {
+    pub fn new() -> For {
+        For {
+            exp : Assignment::new(),
+            optional_exp_1 : None,
+            optional_exp_2 : None,
+            statement : Box::new(Statement::new()),
+        }
+    }
+}
+
+impl ForDecl {
+    pub fn new() -> ForDecl {
+        ForDecl {
+            exp : Assignment::new(),
+            decl : Declaration::new(),
+            optional_exp_2 : None,
+            statement : Box::new(Statement::new()),            
+        }
+    }
+}
+
+impl DoWhile {
+    pub fn new() -> DoWhile {
+        DoWhile {
+            exp : Assignment::new(),
+            statement : Box::new(Statement::new()),
+        }
+    }
+}
+
+impl Break {
+    pub fn new() -> Break {
+        Break {
+
+        }
+    }
+}
+
+impl Continue {
+    pub fn new() -> Continue {
+        Continue {
+
+        }
+    }
+}
+
+impl While {
+    pub fn new() -> While {
+        While {
+            exp : Assignment::new(),
+            statement : Box::new(Statement::new()),
+        }
+    }
+}
+
 impl Statement {
     pub fn new () -> Statement {
         Statement {
@@ -193,6 +287,12 @@ impl Statement {
             compound : None,
             exp : None,
             _if : None,
+            _for : None,
+            _for_decl : None,
+            _do : None,
+            _break : None,
+            _continue : None,
+            _while : None,
         }
     }
 }
@@ -206,11 +306,21 @@ impl Assignment {
             op : String::new(),
         }
     }
+
     pub fn set_to_zero() -> Assignment {
         Assignment {
             var : None,
             assign : None,
             exp : Some(ConditionalExp::set_to_zero()),
+            op : String::new(),
+        }
+    }
+
+    pub fn set_to_one() -> Assignment {
+        Assignment {
+            var : None,
+            assign : None,
+            exp : Some(ConditionalExp::set_to_one()),
             op : String::new(),
         }
     }
@@ -260,6 +370,14 @@ impl ConditionalExp {
             false_exp : None,
         }
     }
+
+    pub fn set_to_one() -> ConditionalExp {
+        ConditionalExp {
+            exp : OrExpression::set_to_one(),
+            true_exp : None,
+            false_exp : None,
+        }
+    }
 }
 
 impl OrExpression {
@@ -277,6 +395,15 @@ impl OrExpression {
             op : String::new(),
             left_exp : None,
             left_and_exp : Some(Box::new(AndExpression::set_to_zero())),
+            right_and_exp : None,
+        }
+    }
+
+    pub fn set_to_one() -> OrExpression {
+        OrExpression {
+            op : String::new(),
+            left_exp : None,
+            left_and_exp : Some(Box::new(AndExpression::set_to_one())),
             right_and_exp : None,
         }
     }
@@ -300,6 +427,15 @@ impl AndExpression {
             right_child : None,
         }
     }
+
+    pub fn set_to_one() -> AndExpression {
+        AndExpression {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitOr::set_to_one())),
+            right_child : None,
+        }
+    }
 }
 
 impl BitOr {
@@ -317,6 +453,15 @@ impl BitOr {
             op : String::new(),
             left_exp : None,
             left_child : Some(Box::new(BitXor::set_to_zero())),
+            right_child: None,
+        }
+    }
+
+    pub fn set_to_one() -> BitOr {
+        BitOr {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitXor::set_to_one())),
             right_child: None,
         }
     }
@@ -340,6 +485,15 @@ impl BitXor {
             right_child: None,
         }
     }
+
+    pub fn set_to_one() -> BitXor {
+        BitXor {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitAnd::set_to_one())),
+            right_child: None,
+        }
+    }
 }
 
 impl BitAnd {
@@ -357,6 +511,15 @@ impl BitAnd {
             op : String::new(),
             left_exp : None,
             left_child : Some(Box::new(EqualityExp::set_to_zero())),
+            right_child: None,
+        }
+    }
+
+    pub fn set_to_one() -> BitAnd {
+        BitAnd {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(EqualityExp::set_to_one())),
             right_child: None,
         }
     }
@@ -380,6 +543,15 @@ impl EqualityExp {
             right_relation_exp : None,
         }
     }
+
+    pub fn set_to_one() -> EqualityExp {
+        EqualityExp {
+            op : String::new(),
+            left_exp : None,
+            left_relation_exp : Some(Box::new(RelationalExp::set_to_one())),
+            right_relation_exp : None,
+        }
+    }
 }
 
 impl RelationalExp {
@@ -397,6 +569,15 @@ impl RelationalExp {
             op : String::new(),
             left_exp : None,
             left_child : Some(Box::new(BitShift::set_to_zero())),
+            right_child : None,
+        }
+    }
+
+    pub fn set_to_one() -> RelationalExp {
+        RelationalExp {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(BitShift::set_to_one())),
             right_child : None,
         }
     }
@@ -420,6 +601,15 @@ impl BitShift {
             right_child: None,
         }
     }
+
+    pub fn set_to_one() -> BitShift {
+        BitShift {
+            op : String::new(),
+            left_exp : None,
+            left_child : Some(Box::new(AdditiveExp::set_to_one())),
+            right_child: None,
+        }
+    }
 }
 
 impl AdditiveExp {
@@ -436,7 +626,16 @@ impl AdditiveExp {
         AdditiveExp {
             op : String::new(),
             left_exp : None,
-            left_term : None,
+            left_term : Some(Box::new(Term::set_to_zero())),
+            right_term : None,
+        }
+    }
+
+    pub fn set_to_one() -> AdditiveExp {
+        AdditiveExp {
+            op : String::new(),
+            left_exp : None,
+            left_term : Some(Box::new(Term::set_to_one())),
             right_term : None,
         }
     }
@@ -457,6 +656,15 @@ impl Term {
             op: String::new(),
             left_term : None,
             left_child : Some(Box::new(PostFixUnary::set_to_zero())),
+            right_child : None,
+        }
+    }
+
+    pub fn set_to_one() -> Term {
+        Term {
+            op: String::new(),
+            left_term : None,
+            left_child : Some(Box::new(PostFixUnary::set_to_one())),
             right_child : None,
         }
     }
@@ -481,6 +689,17 @@ impl Factor {
             postfix_unary : None,
             exp: None,
             val : Some(0),
+            var : None,
+        }
+    }
+
+    pub fn set_to_one() -> Factor {
+        Factor {
+            op : String::new(),
+            unary : None,
+            postfix_unary : None,
+            exp: None,
+            val : Some(1),
             var : None,
         }
     }
@@ -509,12 +728,73 @@ impl PostFixUnary {
             child : Some(Box::new(Factor::set_to_zero())),
         }
     }
+
+    pub fn set_to_one() -> PostFixUnary {
+        PostFixUnary {
+            op : String::new(),
+            child : Some(Box::new(Factor::set_to_one())),
+        }
+    }
 }
 
 impl Clone for Compound {
     fn clone(&self) -> Self {
         Compound {
             list_of_blk : self.list_of_blk.clone(),
+        }
+    }
+}
+
+impl Clone for For {
+    fn clone(&self) -> Self {
+        For {
+            exp : self.exp.clone(),
+            optional_exp_1 : self.optional_exp_1.clone(),
+            optional_exp_2 : self.optional_exp_2.clone(),
+            statement : self.statement.clone(),
+        }
+    }
+}
+
+impl Clone for ForDecl {
+    fn clone(&self) -> Self {
+        ForDecl {
+            exp : self.exp.clone(),
+            decl : self.decl.clone(),
+            optional_exp_2 : self.optional_exp_2.clone(),
+            statement : self.statement.clone(),
+        }
+    }
+}
+
+impl Clone for DoWhile {
+    fn clone(&self) -> Self {
+        DoWhile {
+            statement : self.statement.clone(),
+            exp : self.exp.clone(),
+        }
+    }
+}
+
+impl Clone for Break {
+    fn clone(&self) -> Self {
+        Break {
+        }
+    }
+}
+
+impl Clone for Continue {
+    fn clone(&self) -> Self {
+        Continue {
+        }
+    }
+}
+
+impl Clone for While {
+    fn clone(&self) -> Self {
+        While {
+            statement : self.statement.clone(),
+            exp : self.exp.clone(),
         }
     }
 }
@@ -526,6 +806,12 @@ impl Clone for Statement {
             compound: self.compound.clone(),
             exp : self.exp.clone(),
             name : self.name.clone(),
+            _for : self._for.clone(),
+            _for_decl : self._for_decl.clone(),
+            _do : self._do.clone(),
+            _break : self._break.clone(),
+            _continue : self._continue.clone(),
+            _while : self._while.clone(),
         }
     }
 }
@@ -1345,6 +1631,16 @@ pub fn peek_two_tokens(token_vec : &Vec<lexer::Token>) -> lexer::Token {
     get_option_token(tok_clone.first().cloned())
 }
 
+pub fn peek_n_tokens(token_vec : &Vec<lexer::Token>, n : i32) -> lexer::Token {
+    assert!(token_vec.len() >=2, "Token vector is not at least of size 2.");
+
+    let mut tok_clone = token_vec.clone();
+    for i in 0..n {
+        tok_clone.remove(0);
+    }
+    get_option_token(tok_clone.first().cloned())
+}
+
 pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     let mut result : Function  = Function::new();
     let mut tok : lexer::Token = get_next_token(token_vec);
@@ -1379,10 +1675,13 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
 
 pub fn parse_block_item(token_vec : &mut Vec<lexer::Token>) -> BlockItem {
     let mut result : BlockItem = BlockItem::new();
-    let tok : lexer::Token = peek_next_token(token_vec);
+    let mut tok : lexer::Token = peek_next_token(token_vec);
 
     if (tok.name=="Type") {
         result.decl = Some(parse_declaration(token_vec));
+        
+        tok = get_next_token(token_vec);
+        assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
     }
     else {
         result.state = Some(parse_statement(token_vec));
@@ -1407,6 +1706,122 @@ pub fn parse_compound(token_vec : &mut Vec<lexer::Token>) -> Compound {
 
     assert!(tok.name == "Punc" && tok.value == "}", "Invalid cmpd punc: (\"}\")");
     token_vec.remove(0);
+    result
+}
+
+
+pub fn parse_while(token_vec : &mut Vec<lexer::Token>) -> While {
+    let mut result : While = While::new();
+    token_vec.remove(0);
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.value == "(", "missing ( in while, saw {}", tok.value);
+    token_vec.remove(0);
+    result.exp = parse_assign(token_vec);
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ")", "missing ) in while, saw {}", tok.value);
+    token_vec.remove(0);
+
+    result.statement = Box::new(parse_statement(token_vec));
+
+    result
+}
+
+
+pub fn parse_for(token_vec : &mut Vec<lexer::Token>) -> For {
+    let mut result : For = For::new();
+    token_vec.remove(0);
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.value == "(", "missing ( in for, saw {}", tok.value);
+    token_vec.remove(0); 
+    tok = peek_next_token(token_vec);
+    if (tok.value != ";") {
+        result.optional_exp_1 = Some(parse_assign(token_vec));
+    } 
+
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ";", "missing ; in for, saw {}", tok.value);   
+    token_vec.remove(0); 
+    tok = peek_next_token(token_vec);
+    if (tok.value != ";") {
+        result.exp= parse_assign(token_vec);
+    } 
+    else {
+        result.exp = Assignment::set_to_one();
+    }
+
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ";", "missing ; in for, saw {}", tok.value);
+    token_vec.remove(0);
+    tok = peek_next_token(token_vec);
+    if (tok.value != ")") {
+        result.optional_exp_2 = Some(parse_assign(token_vec));
+    } 
+
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ")", "missing ) in for, saw {}", tok.value);
+    token_vec.remove(0);
+    
+    result
+}
+
+
+pub fn parse_for_decl(token_vec : &mut Vec<lexer::Token>) -> ForDecl {
+    let mut result : ForDecl = ForDecl::new();
+    token_vec.remove(0);
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    assert!(tok.value == "(", "missing ( in for_decl, saw {}", tok.value);
+    token_vec.remove(0);
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == "int", "missing int in for_decl, saw {}", tok.value);
+    result.decl = parse_declaration(token_vec);
+
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ";", "missing ; in for_decl, saw {}", tok.value);   
+    token_vec.remove(0); 
+    tok = peek_next_token(token_vec);
+    if (tok.value != ";") {
+        result.exp= parse_assign(token_vec);
+    } 
+    else {
+        result.exp = Assignment::set_to_one();
+    }
+
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ";", "missing ; in for_decl, saw {}", tok.value);
+    token_vec.remove(0);
+    tok = peek_next_token(token_vec);
+    if (tok.value != ")") {
+        result.optional_exp_2 = Some(parse_assign(token_vec));
+    } 
+
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ")", "missing ) in for_decl, saw {}", tok.value);
+    token_vec.remove(0);
+    
+    result
+}
+
+
+pub fn parse_do_while(token_vec : &mut Vec<lexer::Token>) -> DoWhile {
+    let mut result : DoWhile = DoWhile::new();
+    token_vec.remove(0);
+    result.statement = Box::new(parse_statement(token_vec));
+
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+    token_vec.remove(0);
+    assert!(tok.value == "while", "missing \"while\" in do-while, saw {}", tok.value);
+    tok = peek_next_token(token_vec);
+
+    assert!(tok.value == "(", "missing ( in do-while, saw {}", tok.value);
+    token_vec.remove(0);
+    result.exp = parse_assign(token_vec);
+    tok = peek_next_token(token_vec);
+    assert!(tok.value == ")", "missing ) in do-while, saw {}", tok.value);
+    token_vec.remove(0);
+
     result
 }
 
@@ -1436,9 +1851,32 @@ pub fn parse_statement(token_vec : &mut Vec<lexer::Token>) -> Statement {
             tok = get_next_token(token_vec);
             assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
         }
+        else if (tok.value == "while") {
+            result._while = Some(parse_while(token_vec));
+        }
+        else if (tok.value == "for") {
+            let tok_clone : lexer::Token;
+            if (peek_n_tokens(token_vec, 2).value == "int" && peek_n_tokens(token_vec, 2).name == "Type") {
+                result._for_decl = Some(parse_for_decl(token_vec));
+            }
+            else {
+                result._for = Some(parse_for(token_vec));
+            }
+        }
+        else if (tok.value == "do") {
+            result._do = Some(parse_do_while(token_vec));
+        }
+        else if (tok.value == "break" || tok.value == "continue") {
+            result.name = tok.value.clone();
+            token_vec.remove(0);
+        }
     }
     else if (tok.name == "Punc" && tok.value == "{") {
         result.compound = Some(parse_compound(token_vec));
+    }
+    else if (tok.name == "Punc" && tok.value == ";") {
+        result.name = String::from("empty");
+        token_vec.remove(0);
     }
     else {
         result.name = String::from("exp");
@@ -1493,9 +1931,6 @@ pub fn parse_declaration(token_vec : &mut Vec<lexer::Token>) -> Declaration {
         result.exp = Assignment::set_to_zero();
     }
 
-    tok = get_next_token(token_vec);
-    assert!(tok.value == ";", "Missing semicolon, saw {}", tok.value);
-
     result
 }
 
@@ -1514,7 +1949,7 @@ pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
            valid_postfix_unary(tok.value.clone()) ||
            tok.name == "Identifier",
         "Invalid assignment, saw: {}", tok.value);
-    
+
     let mut next_tok = peek_two_tokens(&token_vec);
 
     if (tok.name == "Identifier" && is_assignment_op(next_tok.value.clone())) {
@@ -1543,7 +1978,7 @@ pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
         }
     }
     else {
-        // Not an assignment, move on.
+        // Not an assignment, move on.       
         result.exp = Some(parse_cond(token_vec));
     }
 
@@ -1552,7 +1987,6 @@ pub fn parse_assign(token_vec : &mut Vec<lexer::Token>) -> Assignment {
 
 pub fn parse_cond(token_vec : &mut Vec<lexer::Token>) -> ConditionalExp {
     let mut result : ConditionalExp = ConditionalExp::new();
-
     result.exp = parse_or_exp(token_vec);
 
     if (peek_next_token(token_vec).value == "?") {

@@ -8,6 +8,7 @@ Currently, rustcc supports the following features:
 * Local variables (assignment, declaration, variable calling, postfix and prefix incrementing)
 * If-else branching
 * Ternary operator
+* While loops, do-while loops, for loops, break, continue
 
 ## Installation
 To install, ensure beforehand that you have [Rust and Cargo installed.](https://www.rust-lang.org/tools/install)  After that, clone the repository.  Then, run ``cargo build --release``.

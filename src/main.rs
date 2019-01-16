@@ -25,6 +25,10 @@ fn print_assembly(input : &String){
    println!("=====End assembly=====");
 }
 
+fn exit_program() {
+    std::process::exit(1);
+}
+
 fn generate_function(func : &parser::Function) -> String {
     let mut result : String = String::from(func.name.clone().as_str());
     result.push_str(":\n");
@@ -67,19 +71,19 @@ fn generate_function(func : &parser::Function) -> String {
 
 fn generate_compound(cmp : &parser::Compound, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
     let mut result = String::new();
-    let mut cur_map : HashMap<String, i32> = HashMap::new();
+    let mut new_cur_map : HashMap<String, i32> = HashMap::new();
 
     for blk in &cmp.list_of_blk {
         match blk.state.clone() {
             Some (x) => {
                 let mut fake_var_map : HashMap<String, i32> = var_map.clone();
                 let mut fake_stack_index : i32 = *stack_index;
-                result.push_str(generate_statement(&x, &mut fake_var_map, &mut fake_stack_index, fn_index, &mut cur_map).as_str());
+                result.push_str(generate_statement(&x, &mut fake_var_map, &mut fake_stack_index, fn_index, &mut new_cur_map).as_str());
             },
             None => {
                 match blk.decl.clone() {
                     Some (y) => {
-                        result.push_str(generate_declaration(&y, var_map, stack_index, fn_index, &mut cur_map).as_str());
+                        result.push_str(generate_declaration(&y, var_map, stack_index, fn_index, &mut new_cur_map).as_str());
                     },
                     None => (),
                 }
@@ -87,7 +91,7 @@ fn generate_compound(cmp : &parser::Compound, var_map : &mut HashMap<String, i32
         }
     }
 
-    result.push_str(format!("    addl ${}, %esp # Deallocate bytes\n", cur_map.len() * 4).as_str());
+    result.push_str(format!("    addl      ${}, %esp # Deallocate bytes\n", new_cur_map.len() * 4).as_str());
 
     result
 }
@@ -116,7 +120,7 @@ fn generate_while(loop_type : &parser::While, var_map : &mut HashMap<String, i32
 
 fn generate_for(loop_type : &parser::For, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
     let mut result = String::new();
-
+    exit_program();
     result
 }
 
@@ -124,7 +128,7 @@ fn generate_for(loop_type : &parser::For, var_map : &mut HashMap<String, i32>, s
 fn generate_for_decl(loop_type : &parser::ForDecl, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
     let mut result = String::new();
     let mut cur_map : HashMap<String, i32> = HashMap::new();
-
+    exit_program();
     result
 }
 
@@ -132,10 +136,37 @@ fn generate_for_decl(loop_type : &parser::ForDecl, var_map : &mut HashMap<String
 fn generate_do(loop_type : &parser::DoWhile, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
     let mut result = String::new();
 
+    *fn_index += 1;
+    let do_index = *fn_index;
+    result.push_str(format!("\n{}{}:\n", LOOP, do_index).as_str());
+
+    *fn_index += 1;
+    let after_index = *fn_index;
+    result.push_str(generate_statement(&*loop_type.statement, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(format!("    jmp      {}{}\n", LOOP, do_index).as_str());
+
+    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str("    cmpl     $0, %eax\n");
+    result.push_str(format!("    je       {}{}\n", POST_LOOP, after_index).as_str());
+
+    result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
+
     result
 }
 
 
+fn generate_break(break_exp : &parser::Break, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+    let mut result = String::new();
+    exit_program();
+    result
+}
+
+
+fn generate_continue(continue_exp : &parser::Continue, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+    let mut result = String::new();
+    exit_program();
+    result
+}
 
 
 fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
@@ -189,11 +220,11 @@ fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i3
         None => (),
     }
     match st._continue.clone() {
-        Some (y) => (),
+        Some (y) => result.push_str(generate_continue(&y, var_map, stack_index, fn_index, cur_map).as_str()),
         None => (),
     }
     match st._break.clone() {
-        Some (y) => (),
+        Some (y) => result.push_str(generate_break(&y, var_map, stack_index, fn_index, cur_map).as_str()),
         None => (),
     }
 

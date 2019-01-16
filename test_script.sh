@@ -43,6 +43,11 @@ test_compile_run() {
     "./${1%.*}" > /dev/null
 
     actual_val="$?"
+
+    if [ -e "${1%.*}" ]; then
+        rm "${1%.*}"
+    fi
+    
     if [ ${actual_val} -eq ${ret_val} ]; then
         pass ${1} "run"
     else

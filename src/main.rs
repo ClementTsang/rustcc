@@ -199,6 +199,7 @@ fn generate_for_decl(loop_type : &parser::ForDecl, var_map : &mut HashMap<String
     }
     result.push_str(format!("    jmp      {}{}\n", LOOP, for_index).as_str());
     result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
+    result.push_str(format!("    addl     ${}, %esp # Deallocate bytes\n", new_cur_map.len() * 4).as_str());
 
     result
 }

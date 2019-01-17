@@ -1872,6 +1872,8 @@ pub fn parse_for(token_vec : &mut Vec<lexer::Token>) -> For {
     tok = peek_next_token(token_vec);
     assert!(tok.value == ")", "missing ) in for, saw {}", tok.value);
     token_vec.remove(0);
+
+    result.statement = Box::new(parse_statement(token_vec));
     
     result
 }
@@ -1910,6 +1912,8 @@ pub fn parse_for_decl(token_vec : &mut Vec<lexer::Token>) -> ForDecl {
     tok = peek_next_token(token_vec);
     assert!(tok.value == ")", "missing ) in for_decl, saw {}", tok.value);
     token_vec.remove(0);
+
+    result.statement = Box::new(parse_statement(token_vec));
     
     result
 }

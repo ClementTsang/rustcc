@@ -18,7 +18,7 @@ static IF_FN : &str = "if_fn";
 static ELSE_FN : &str = "else_fn";
 static LOOP : &str = "loop";
 static POST_LOOP : &str = "post_loop";
-
+static CONTINUE : &str = "continue";
 
 fn print_assembly(input : &String){
    println!("=====Resulting assembly=====\n{}", input);
@@ -46,12 +46,12 @@ fn generate_function(func : &parser::Function) -> String {
             Some (x) => {
                 let mut fake_var_map : HashMap<String, i32> = var_map.clone();
                 let mut fake_stack_index : i32 = stack_index;
-                result.push_str(generate_statement(&x, &mut fake_var_map, &mut fake_stack_index, &mut fn_index, &mut cur_map).as_str());
+                result.push_str(generate_statement(&x, &mut fake_var_map, &mut fake_stack_index, &mut fn_index, &mut cur_map, &mut String::from(""), &mut String::from("")).as_str());
             },
             None => {
                 match blk.decl.clone() {
                     Some (y) => {
-                        result.push_str(generate_declaration(&y, &mut var_map, &mut stack_index, &mut fn_index, &mut cur_map).as_str());
+                        result.push_str(generate_declaration(&y, &mut var_map, &mut stack_index, &mut fn_index, &mut cur_map, &mut String::from(""), &mut String::from("")).as_str());
                     },
                     None => (),
                 }
@@ -69,7 +69,7 @@ fn generate_function(func : &parser::Function) -> String {
 
 
 
-fn generate_compound(cmp : &parser::Compound, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_compound(cmp : &parser::Compound, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     let mut new_cur_map : HashMap<String, i32> = HashMap::new();
 
@@ -78,38 +78,50 @@ fn generate_compound(cmp : &parser::Compound, var_map : &mut HashMap<String, i32
             Some (x) => {
                 let mut fake_var_map : HashMap<String, i32> = var_map.clone();
                 let mut fake_stack_index : i32 = *stack_index;
-                result.push_str(generate_statement(&x, &mut fake_var_map, &mut fake_stack_index, fn_index, &mut new_cur_map).as_str());
+                result.push_str(generate_statement(&x, &mut fake_var_map, &mut fake_stack_index, fn_index, &mut new_cur_map, loop_start, loop_post).as_str());
             },
             None => {
                 match blk.decl.clone() {
                     Some (y) => {
-                        result.push_str(generate_declaration(&y, var_map, stack_index, fn_index, &mut new_cur_map).as_str());
+                        result.push_str(generate_declaration(&y, var_map, stack_index, fn_index, &mut new_cur_map, loop_start, loop_post).as_str());
                     },
                     None => (),
                 }
             },
         }
     }
-
-    result.push_str(format!("    addl      ${}, %esp # Deallocate bytes\n", new_cur_map.len() * 4).as_str());
+    
+    result.push_str(format!("    addl     ${}, %esp # Deallocate bytes\n", new_cur_map.len() * 4).as_str());
 
     result
 }
 
 
-fn generate_while(loop_type : &parser::While, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_while(loop_type : &parser::While, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     *fn_index += 1;
     let while_index = *fn_index;
-    result.push_str(format!("\n{}{}:\n", LOOP, while_index).as_str());
-    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map).as_str());
-    result.push_str("    cmpl     $0, %eax\n");
+
+    *fn_index += 1;
+    let continue_index = *fn_index;
 
     *fn_index += 1;
     let after_index = *fn_index;
+
+    result.push_str(format!("\n{}{}:\n", LOOP, while_index).as_str());
+    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+    result.push_str("    cmpl     $0, %eax\n");
+
     result.push_str(format!("    je       {}{}\n", POST_LOOP, after_index).as_str());
-    result.push_str(generate_statement(&*loop_type.statement, var_map, stack_index, fn_index, cur_map).as_str());
+
+    *loop_post = format!("{}{}", POST_LOOP, after_index);
+    *loop_start = format!("{}{}", CONTINUE, continue_index);
+    result.push_str(generate_statement(&*loop_type.statement, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+
+
+    result.push_str(format!("\n{}{}:\n", CONTINUE, continue_index).as_str());
+    
     result.push_str(format!("    jmp      {}{}\n", LOOP, while_index).as_str());
 
     result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
@@ -118,22 +130,81 @@ fn generate_while(loop_type : &parser::While, var_map : &mut HashMap<String, i32
 }
 
 
-fn generate_for(loop_type : &parser::For, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_for(loop_type : &parser::For, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
-    exit_program();
+
+    match (loop_type.optional_exp_1.clone()) {
+        Some (x) => result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
+        None => (),
+    }
+
+    *fn_index += 1;
+    let for_index = *fn_index;
+    result.push_str(format!("\n{}{}:\n", LOOP, for_index).as_str());
+
+    *fn_index += 1;
+    let continue_index = *fn_index;
+    
+    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+    result.push_str("    cmpl     $0, %eax\n");
+
+    *fn_index += 1;
+    let after_index = *fn_index;
+    result.push_str(format!("    je       {}{}\n", POST_LOOP, after_index).as_str());
+    *loop_post = format!("{}{}", POST_LOOP, after_index);
+    *loop_start = format!("{}{}", CONTINUE, continue_index);
+    result.push_str(generate_statement(&loop_type.statement, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+    
+    result.push_str(format!("\n{}{}:\n", CONTINUE, continue_index).as_str());
+    
+    match (loop_type.optional_exp_2.clone()) {
+        Some (x) => result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
+        None => (),
+    }
+    result.push_str(format!("    jmp      {}{}\n", LOOP, for_index).as_str());
+    result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
+
     result
 }
 
 
-fn generate_for_decl(loop_type : &parser::ForDecl, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_for_decl(loop_type : &parser::ForDecl, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
-    let mut cur_map : HashMap<String, i32> = HashMap::new();
-    exit_program();
+    let mut new_cur_map : HashMap<String, i32> = HashMap::new();
+
+    result.push_str(generate_declaration(&loop_type.decl, var_map, stack_index, fn_index, &mut new_cur_map, loop_start, loop_post).as_str()); 
+
+    *fn_index += 1;
+    let for_index = *fn_index;
+    result.push_str(format!("\n{}{}:\n", LOOP, for_index).as_str());
+
+    *fn_index += 1;
+    let continue_index = *fn_index;
+    
+    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, &mut new_cur_map, loop_start, loop_post).as_str());
+    result.push_str("    cmpl     $0, %eax\n");
+
+    *fn_index += 1;
+    let after_index = *fn_index;
+    result.push_str(format!("    je       {}{}\n", POST_LOOP, after_index).as_str());
+    *loop_post = format!("{}{}", POST_LOOP, after_index);
+    *loop_start = format!("{}{}", CONTINUE, continue_index);
+    result.push_str(generate_statement(&loop_type.statement, var_map, stack_index, fn_index, &mut new_cur_map, loop_start, loop_post).as_str());
+
+    result.push_str(format!("\n{}{}:\n", CONTINUE, continue_index).as_str());
+
+    match (loop_type.optional_exp_2.clone()) {
+        Some (x) => result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, &mut new_cur_map, loop_start, loop_post).as_str()),
+        None => (),
+    }
+    result.push_str(format!("    jmp      {}{}\n", LOOP, for_index).as_str());
+    result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
+
     result
 }
 
 
-fn generate_do(loop_type : &parser::DoWhile, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_do(loop_type : &parser::DoWhile, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     *fn_index += 1;
@@ -141,13 +212,21 @@ fn generate_do(loop_type : &parser::DoWhile, var_map : &mut HashMap<String, i32>
     result.push_str(format!("\n{}{}:\n", LOOP, do_index).as_str());
 
     *fn_index += 1;
-    let after_index = *fn_index;
-    result.push_str(generate_statement(&*loop_type.statement, var_map, stack_index, fn_index, cur_map).as_str());
+    let continue_index = *fn_index;
 
-    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map).as_str());
+    *fn_index += 1;
+    let after_index = *fn_index;
+
+    *loop_post = format!("{}{}", POST_LOOP, after_index);
+    *loop_start = format!("{}{}", CONTINUE, continue_index);
+
+    result.push_str(generate_statement(&*loop_type.statement, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+
+    result.push_str(format!("\n{}{}:\n", CONTINUE, continue_index).as_str());
+
+    result.push_str(generate_assignment(&loop_type.exp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    cmpl     $0, %eax\n");
-    result.push_str(format!("    je       {}{}\n", POST_LOOP, after_index).as_str());
-    result.push_str(format!("    jmp      {}{}\n", LOOP, do_index).as_str());
+    result.push_str(format!("    jne      {}{}\n", LOOP, do_index).as_str());
 
     result.push_str(format!("\n{}{}:\n", POST_LOOP, after_index).as_str());
 
@@ -155,22 +234,31 @@ fn generate_do(loop_type : &parser::DoWhile, var_map : &mut HashMap<String, i32>
 }
 
 
-fn generate_break(break_exp : &parser::Break, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_break(break_exp : &parser::Break, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
-    exit_program();
+    
+    assert!((loop_post != ""), "Empty loop, break in invalid area.");
+    result.push_str(format!("    jmp      {} # break\n", loop_post).as_str());
+
     result
 }
 
 
-fn generate_continue(continue_exp : &parser::Continue, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_continue(continue_exp : &parser::Continue, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
-    exit_program();
+    
+    assert!((loop_start != ""), "Empty loop, break in invalid area.");
+    result.push_str(format!("    jmp      {} # continue\n", loop_start).as_str());
+
     result
 }
 
 
-fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
+
+    let old_post : String = loop_post.clone();
+    let old_start : String = loop_start.clone(); 
 
     if (st.name == "empty") {
         return result;
@@ -178,7 +266,7 @@ fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i3
 
     match st.exp.clone() {
         Some(x) => {
-            result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             if (st.name == "return") {
                 result.push_str("    movl     %ebp, %esp # Close function\n");
                 result.push_str("    popl     %ebp\n");
@@ -190,52 +278,55 @@ fn generate_statement(st : &parser::Statement, var_map : &mut HashMap<String, i3
 
     match st._if.clone() {
         Some (x) => {
-            result.push_str(generate_if(&x, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_if(&x, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
         },
         None => (),
     }
 
     match st.compound.clone() {
         Some (x) => {
-            result.push_str(generate_compound(&x, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_compound(&x, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
         }
         None => (),
     }
 
     // Loops
     match st._while.clone() {
-        Some (y) => result.push_str(generate_while(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        Some (y) => result.push_str(generate_while(&y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
         None => (),
     }
     match st._for.clone() {
-        Some (y) => result.push_str(generate_for(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        Some (y) => result.push_str(generate_for(&y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
         None => (),
     }
     match st._for_decl.clone() {
-        Some (y) => result.push_str(generate_for_decl(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        Some (y) => result.push_str(generate_for_decl(&y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
         None => (),
     }
     match st._do.clone() {
-        Some (y) => result.push_str(generate_do(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        Some (y) => result.push_str(generate_do(&y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
         None => (),
     }
     match st._continue.clone() {
-        Some (y) => result.push_str(generate_continue(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        Some (y) => result.push_str(generate_continue(&y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
         None => (),
     }
     match st._break.clone() {
-        Some (y) => result.push_str(generate_break(&y, var_map, stack_index, fn_index, cur_map).as_str()),
+        Some (y) => result.push_str(generate_break(&y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str()),
         None => (),
     }
 
+    *loop_post = old_post;
+    *loop_start = old_start;
+    
     result
 }
 
-fn generate_if(if_exp : &parser::If, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_if(if_exp : &parser::If, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     // Cond
-    result.push_str(generate_assignment(&if_exp.cond, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_assignment(&if_exp.cond, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     
     match if_exp.state.clone() {
         Some (x) => {
@@ -243,7 +334,7 @@ fn generate_if(if_exp : &parser::If, var_map : &mut HashMap<String, i32>, stack_
             *fn_index += 1;
             let if_index = *fn_index;
             result.push_str(format!("    je       {}{} # Jump to else condition\n", IF_FN, fn_index).as_str());
-            result.push_str(generate_statement(&*x, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_statement(&*x, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
 
             match if_exp.else_state.clone() {
                 Some (y) => {
@@ -251,7 +342,7 @@ fn generate_if(if_exp : &parser::If, var_map : &mut HashMap<String, i32>, stack_
                     let else_index = *fn_index;
                     result.push_str(format!("    jmp      {}{}\n", ELSE_FN, else_index).as_str());
                     result.push_str(format!("\n{}{}:\n", IF_FN, if_index).as_str());                        
-                    result.push_str(generate_statement(&*y, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_statement(&*y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                     result.push_str(format!("\n{}{}:\n", ELSE_FN, else_index).as_str());
                 },
                 None => {
@@ -265,7 +356,7 @@ fn generate_if(if_exp : &parser::If, var_map : &mut HashMap<String, i32>, stack_
     result
 }
 
-fn generate_declaration(decl : &parser::Declaration, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_declaration(decl : &parser::Declaration, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     // Check to see if the variable has been declared already.
@@ -274,8 +365,8 @@ fn generate_declaration(decl : &parser::Declaration, var_map : &mut HashMap<Stri
 
 
     // Generate value to assign to variable
-    result.push_str(generate_assignment(&decl.exp, var_map, stack_index, fn_index, cur_map).as_str());
-    result.push_str("    pushl   %eax\n");
+    result.push_str(generate_assignment(&decl.exp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+    result.push_str("    pushl    %eax\n");
 
     // Push new variable to hash map, decrement stack index.
     *stack_index -= 4;
@@ -285,18 +376,18 @@ fn generate_declaration(decl : &parser::Declaration, var_map : &mut HashMap<Stri
     result
 }
 
-fn generate_assignment(assign_exp : &parser::Assignment, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_assignment(assign_exp : &parser::Assignment, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     // Generate expression value
     match assign_exp.assign.clone() {
         Some(a) => {
-            result.push_str(generate_assignment(&*a, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_assignment(&*a, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
         },
         None => {
             match assign_exp.exp.clone() {
                 Some(exp) => {
-                    result.push_str(generate_cond_exp(&exp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_cond_exp(&exp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => ()
             }
@@ -354,7 +445,7 @@ fn generate_assignment(assign_exp : &parser::Assignment, var_map : &mut HashMap<
                         },
                         _ => {
                             println!("Found an invalid assignment operation.");
-                            std::process::exit(1);
+                            exit_program();
                         }
                     }
                     result.push_str(format!("    movl     %eax, {}(%ebp) # Assigning new value\n", offset).as_str());
@@ -368,10 +459,10 @@ fn generate_assignment(assign_exp : &parser::Assignment, var_map : &mut HashMap<
     result
 }
 
-fn generate_cond_exp(cond_exp : &parser::ConditionalExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_cond_exp(cond_exp : &parser::ConditionalExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
-    result.push_str(generate_or_expr(&cond_exp.exp, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_or_expr(&cond_exp.exp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
 
     match cond_exp.true_exp.clone() {
         Some(x) => {
@@ -385,11 +476,11 @@ fn generate_cond_exp(cond_exp : &parser::ConditionalExp, var_map : &mut HashMap<
                     result.push_str(format!("    je       {}{}\n", ELSE_FN, false_index).as_str()); 
 
                     let mut false_string : String = format!("{}{}:\n", ELSE_FN, false_index);
-                    false_string.push_str(generate_cond_exp(&y, var_map, stack_index, fn_index, cur_map).as_str());
+                    false_string.push_str(generate_cond_exp(&y, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
 
                     // Case where %eax != 0, so %eax was true.  Thus, we execute the "true" part of the ternary operator, and after, we "jump" over the previous fn.  
                     *fn_index += 1;   
-                    result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_assignment(&x, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                     result.push_str(format!("    jmp      {}{}\n", IF_FN, fn_index).as_str());
                     result.push_str(format!("\n{}", false_string).as_str());
                     result.push_str(format!("\n{}{}:\n", IF_FN, fn_index).as_str());
@@ -397,7 +488,7 @@ fn generate_cond_exp(cond_exp : &parser::ConditionalExp, var_map : &mut HashMap<
                 },
                 None => {
                     println!("Failed to find ternary when one left side (true) exists.");
-                    std::process::exit(1);
+                    exit_program();
                 },
             }
         },
@@ -405,7 +496,7 @@ fn generate_cond_exp(cond_exp : &parser::ConditionalExp, var_map : &mut HashMap<
             match cond_exp.false_exp.clone() {
                 Some(y) => {
                     println!("Failed to find ternary when one right side (false) exists.");
-                    std::process::exit(1);
+                    exit_program();
                 },
                 None => (),
             }
@@ -416,10 +507,10 @@ fn generate_cond_exp(cond_exp : &parser::ConditionalExp, var_map : &mut HashMap<
     result
 }
 
-fn generate_or_rchild(expr : &parser::OrExpression, rchild : &parser::AndExpression, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_or_rchild(expr : &parser::OrExpression, rchild : &parser::AndExpression, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     result.push_str("    pushl    %eax # Generating ||\n");
-    result.push_str(generate_and_expr(&*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_and_expr(&*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    popl    %ecx\n");
     result.push_str("    orl     %ecx, %eax\n");
     result.push_str("    movl    $0, %eax\n");
@@ -428,18 +519,18 @@ fn generate_or_rchild(expr : &parser::OrExpression, rchild : &parser::AndExpress
     result
 }
 
-fn generate_or_expr(exp : &parser::OrExpression, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_or_expr(exp : &parser::OrExpression, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_and_exp.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_or_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_or_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_or_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_or_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -448,11 +539,11 @@ fn generate_or_expr(exp : &parser::OrExpression, var_map : &mut HashMap<String, 
                     Some(lchild) => {
                         match exp.right_and_exp.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_and_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_and_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_and_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_and_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -465,11 +556,11 @@ fn generate_or_expr(exp : &parser::OrExpression, var_map : &mut HashMap<String, 
     result
 }
 
-fn generate_and_rchild(expr : &parser::AndExpression, rchild : &parser::BitOr, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_and_rchild(expr : &parser::AndExpression, rchild : &parser::BitOr, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     result.push_str("    pushl    %eax # Generating &&\n");
-    result.push_str(generate_bit_or(rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_bit_or(rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    popl    %ecx\n");
     result.push_str("    cmpl    $0, %ecx\n");
     result.push_str("    setne   %cl\n");
@@ -481,18 +572,18 @@ fn generate_and_rchild(expr : &parser::AndExpression, rchild : &parser::BitOr, v
     result
 }
 
-fn generate_and_expr(exp : &parser::AndExpression, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_and_expr(exp : &parser::AndExpression, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_child.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_and_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_and_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_and_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_and_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -501,11 +592,11 @@ fn generate_and_expr(exp : &parser::AndExpression, var_map : &mut HashMap<String
                     Some(lchild) => {
                         match exp.right_child.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_bit_or(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_or(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_bit_or(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_or(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -518,29 +609,29 @@ fn generate_and_expr(exp : &parser::AndExpression, var_map : &mut HashMap<String
     result
 }
 
-fn generate_bit_or_rchild(expr : &parser::BitOr, rchild : &parser::BitXor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_or_rchild(expr : &parser::BitOr, rchild : &parser::BitXor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     result.push_str("    pushl    %eax # Generating |\n");
-    result.push_str(generate_bit_xor(rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_bit_xor(rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    popl     %ecx\n");
     result.push_str("    orl      %ecx, %eax # End |\n");
 
     result
 }
 
-fn generate_bit_or(exp : &parser::BitOr, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_or(exp : &parser::BitOr, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_child.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_bit_or(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_bit_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_or(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_bit_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_bit_or(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_or(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -549,11 +640,11 @@ fn generate_bit_or(exp : &parser::BitOr, var_map : &mut HashMap<String, i32>, st
                     Some(lchild) => {
                         match exp.right_child.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_bit_xor(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_bit_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_xor(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_bit_or_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_bit_xor(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_xor(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -566,29 +657,29 @@ fn generate_bit_or(exp : &parser::BitOr, var_map : &mut HashMap<String, i32>, st
     result
 }
 
-fn generate_bit_xor_rchild(expr : &parser::BitXor, rchild : &parser::BitAnd, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_xor_rchild(expr : &parser::BitXor, rchild : &parser::BitAnd, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     result.push_str("    pushl    %eax # Generating ^\n");
-    result.push_str(generate_bit_and(rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_bit_and(rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    popl     %ecx\n");
     result.push_str("    xorl     %ecx, %eax # End ^\n");
 
     result
 }
 
-fn generate_bit_xor(exp : &parser::BitXor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_xor(exp : &parser::BitXor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_child.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_bit_xor(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_bit_xor_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_xor(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_bit_xor_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_bit_xor(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_xor(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -597,11 +688,11 @@ fn generate_bit_xor(exp : &parser::BitXor, var_map : &mut HashMap<String, i32>, 
                     Some(lchild) => {
                         match exp.right_child.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_bit_and(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_bit_xor_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_and(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_bit_xor_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_bit_and(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_and(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -614,29 +705,29 @@ fn generate_bit_xor(exp : &parser::BitXor, var_map : &mut HashMap<String, i32>, 
     result
 }
 
-fn generate_bit_and_rchild(expr : &parser::BitAnd, rchild : &parser::EqualityExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_and_rchild(expr : &parser::BitAnd, rchild : &parser::EqualityExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     result.push_str("    pushl   %eax # Generating &\n");
-    result.push_str(generate_eq_expr(rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_eq_expr(rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    popl    %ecx\n");
     result.push_str("    andl     %ecx, %eax # End &\n");
 
     result
 }
 
-fn generate_bit_and(exp : &parser::BitAnd, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_and(exp : &parser::BitAnd, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_child.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_bit_and(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_bit_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_and(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_bit_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_bit_and(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_and(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -645,11 +736,11 @@ fn generate_bit_and(exp : &parser::BitAnd, var_map : &mut HashMap<String, i32>, 
                     Some(lchild) => {
                         match exp.right_child.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_eq_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_bit_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_eq_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_bit_and_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_eq_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_eq_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -662,11 +753,11 @@ fn generate_bit_and(exp : &parser::BitAnd, var_map : &mut HashMap<String, i32>, 
     result
 }
 
-fn generate_eq_rchild(expr : &parser::EqualityExp, rchild : &parser::RelationalExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_eq_rchild(expr : &parser::EqualityExp, rchild : &parser::RelationalExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     result.push_str("    pushl    %eax # Generating eq\n");
-    result.push_str(generate_rel_expr(&*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_rel_expr(&*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    popl     %ecx\n");
     result.push_str("    cmpl     %eax, %ecx\n");
     result.push_str("    movl     $0, %eax\n");
@@ -680,25 +771,25 @@ fn generate_eq_rchild(expr : &parser::EqualityExp, rchild : &parser::RelationalE
         },
         _ => {
             println!("Found an unwritten binary(Expr): {}", expr.op.as_str());
-            std::process::exit(1);
+            exit_program();
         },
     }
 
     result
 }
 
-fn generate_eq_expr(exp : &parser::EqualityExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_eq_expr(exp : &parser::EqualityExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_relation_exp.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_eq_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_eq_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_eq_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_eq_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_eq_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_eq_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -707,11 +798,11 @@ fn generate_eq_expr(exp : &parser::EqualityExp, var_map : &mut HashMap<String, i
                     Some(lchild) => {
                         match exp.right_relation_exp.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_rel_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_eq_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_rel_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_eq_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_rel_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_rel_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -724,11 +815,11 @@ fn generate_eq_expr(exp : &parser::EqualityExp, var_map : &mut HashMap<String, i
     result
 }
 
-fn generate_rel_rchild(expr : &parser::RelationalExp, rchild : &parser::BitShift, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_rel_rchild(expr : &parser::RelationalExp, rchild : &parser::BitShift, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     result.push_str(format!("    pushl    %eax # Generating rel: {}\n", expr.op.as_str()).as_str());
-    result.push_str(generate_bit_shift(&*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_bit_shift(&*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    popl     %ecx\n");
     result.push_str("    cmpl     %eax, %ecx\n");
     result.push_str("    movl     $0, %eax\n");
@@ -748,25 +839,25 @@ fn generate_rel_rchild(expr : &parser::RelationalExp, rchild : &parser::BitShift
         },
         _ => {
             println!("Found an unwritten binary(Expr): {}", expr.op.as_str());
-            std::process::exit(1);
+            exit_program();
         },
     }
 
     result
 }
 
-fn generate_rel_expr(exp : &parser::RelationalExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_rel_expr(exp : &parser::RelationalExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_child.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_rel_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_rel_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_rel_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_rel_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_rel_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_rel_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -775,11 +866,11 @@ fn generate_rel_expr(exp : &parser::RelationalExp, var_map : &mut HashMap<String
                     Some(lchild) => {
                         match exp.right_child.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_bit_shift(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_rel_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_shift(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_rel_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_bit_shift(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_bit_shift(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -792,11 +883,11 @@ fn generate_rel_expr(exp : &parser::RelationalExp, var_map : &mut HashMap<String
     result
 }
 
-fn generate_bit_shift_rchild(expr : &parser::BitShift, rchild : &parser::AdditiveExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_shift_rchild(expr : &parser::BitShift, rchild : &parser::AdditiveExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
     result.push_str(format!("    pushl    %eax # Generating rel: {}\n", expr.op.as_str()).as_str());
-    result.push_str(generate_add_expr(&*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+    result.push_str(generate_add_expr(&*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
     result.push_str("    movl     %eax, %ecx\n");
     result.push_str("    popl     %eax\n");
 
@@ -809,7 +900,7 @@ fn generate_bit_shift_rchild(expr : &parser::BitShift, rchild : &parser::Additiv
         },
         _ => {
             println!("Found an unwritten binary(BitShift): {}", expr.op.as_str());
-            std::process::exit(1);
+            exit_program();
         },
     }
     
@@ -817,18 +908,18 @@ fn generate_bit_shift_rchild(expr : &parser::BitShift, rchild : &parser::Additiv
     result
 }
 
-fn generate_bit_shift(exp : &parser::BitShift, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_bit_shift(exp : &parser::BitShift, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_child.clone() {
                 Some(rchild) => {
-                    result.push_str(generate_bit_shift(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_bit_shift_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_shift(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_bit_shift_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_bit_shift(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_bit_shift(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -837,11 +928,11 @@ fn generate_bit_shift(exp : &parser::BitShift, var_map : &mut HashMap<String, i3
                     Some(lchild) => {
                         match exp.right_child.clone() {
                             Some(rchild) => {
-                                result.push_str(generate_add_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_bit_shift_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_add_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_bit_shift_rchild(exp, &*rchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_add_expr(&*lchild, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_add_expr(&*lchild, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -854,12 +945,12 @@ fn generate_bit_shift(exp : &parser::BitShift, var_map : &mut HashMap<String, i3
     result
 }
 
-fn generate_add_expr_rterm(expr : &parser::AdditiveExp, rterm : &parser::Term, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_add_expr_rterm(expr : &parser::AdditiveExp, rterm : &parser::Term, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     match expr.op.as_str() {
         "-" => {
             result.push_str("    pushl   %eax # Generating binary (-)\n");
-            result.push_str(generate_term(&*rterm, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_term(&*rterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             result.push_str("    pushl   %eax\n");
             result.push_str("    popl    %ecx\n");
             result.push_str("    popl    %eax\n");
@@ -867,32 +958,32 @@ fn generate_add_expr_rterm(expr : &parser::AdditiveExp, rterm : &parser::Term, v
         },
         "+" => {
             result.push_str("    pushl   %eax # Generating binary (+)\n");
-            result.push_str(generate_term(&*rterm, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_term(&*rterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             result.push_str("    popl    %ecx\n");
             result.push_str("    addl    %ecx, %eax # End +\n");
 
         },
         _ => {
             println!("Found an unwritten binary(Expr): {}", expr.op.as_str());
-            std::process::exit(1);
+            exit_program();
         },
     }
 
     result
 }
 
-fn generate_add_expr(exp : &parser::AdditiveExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_add_expr(exp : &parser::AdditiveExp, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
    
     match exp.left_exp.clone() {
         Some(lexp) => {
             match exp.right_term.clone() {
                 Some(rterm) => {
-                    result.push_str(generate_add_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_add_expr_rterm(exp, &*rterm, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_add_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_add_expr_rterm(exp, &*rterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_add_expr(&*lexp, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_add_expr(&*lexp, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -901,11 +992,11 @@ fn generate_add_expr(exp : &parser::AdditiveExp, var_map : &mut HashMap<String, 
                     Some(lterm) => {
                         match exp.right_term.clone() {
                             Some(rterm) => {
-                                result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_add_expr_rterm(exp, &*rterm, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_add_expr_rterm(exp, &*rterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -918,18 +1009,18 @@ fn generate_add_expr(exp : &parser::AdditiveExp, var_map : &mut HashMap<String, 
     result
 }
 
-fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     match term.op.as_str() {
         "*" => {
             result.push_str("    pushl    %eax # Generating binary (*)\n");
-            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             result.push_str("    popl     %ecx\n");
             result.push_str("    imul     %ecx, %eax # End *\n");
         },
         "/" => {
             result.push_str("    pushl    %eax # Generating binary (/)\n");
-            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             result.push_str("    pushl    %eax\n");
             result.push_str("    popl     %ecx\n");
             result.push_str("    popl     %eax\n");
@@ -939,7 +1030,7 @@ fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::PostFixUnary, 
         },
         "%" => {
             result.push_str("    pushl    %eax # Generating binary (%)\n");
-            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_postfix_unary(&*rfactor, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             result.push_str("    pushl    %eax\n");
             result.push_str("    popl     %ecx\n");
             result.push_str("    popl     %eax\n");
@@ -949,24 +1040,24 @@ fn generate_term_rfactor(term : &parser::Term, rfactor : &parser::PostFixUnary, 
         },
         _ => {
             println!("Found an unwritten Binary(Term): {}", term.op.as_str());
-            std::process::exit(1);
+            exit_program();
         },
     }
 
     result
 }
 
-fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     match term.left_term.clone() {
         Some(lterm) => {
             match term.right_child.clone() {
                 Some(rfactor) => {
-                    result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map).as_str());
-                    result.push_str(generate_term_rfactor(term, &*rfactor, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                    result.push_str(generate_term_rfactor(term, &*rfactor, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
-                    result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_term(&*lterm, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
             }
         },
@@ -975,11 +1066,11 @@ fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stac
                     Some(lfactor) => {
                         match term.right_child.clone() {
                             Some(rfactor) => {
-                                result.push_str(generate_postfix_unary(&*lfactor, var_map, stack_index, fn_index, cur_map).as_str());
-                                result.push_str(generate_term_rfactor(term, &*rfactor, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_postfix_unary(&*lfactor, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+                                result.push_str(generate_term_rfactor(term, &*rfactor, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                             None => {
-                                result.push_str(generate_postfix_unary(&*lfactor, var_map, stack_index, fn_index, cur_map).as_str());
+                                result.push_str(generate_postfix_unary(&*lfactor, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                             },
                         }
                     },
@@ -991,21 +1082,21 @@ fn generate_term(term : &parser::Term, var_map : &mut HashMap<String, i32>, stac
     result
 }
 
-fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     match factor.postfix_unary.clone() {
         Some (pf_un) => {
-            result.push_str(generate_postfix_unary(&*pf_un, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_postfix_unary(&*pf_un, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
         },
         None => {
             match factor.unary.clone() {
                 Some(un) => {
-                    result.push_str(generate_unary(&*un, var_map, stack_index, fn_index, cur_map).as_str());
+                    result.push_str(generate_unary(&*un, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                 },
                 None => {
                     match factor.exp.clone() {
                         Some(e) => {
-                            result.push_str(generate_assignment(&*e, var_map, stack_index, fn_index, cur_map).as_str());
+                            result.push_str(generate_assignment(&*e, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                         },
                         None => {
                             match factor.val {
@@ -1018,7 +1109,7 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
                                     match factor.var.clone() {
                                         Some(va) => {
                                             // Assign new value to variable IF it exists.
-                                            assert!(var_map.contains_key(&(va.var_name.clone())), "Variable declaration not found when referencing.");
+                                            assert!(var_map.contains_key(&(va.var_name.clone())), "Variable declaration not found when referencing: {}.", va.var_name.clone());
                                             let var_offset = var_map.get(&(va.var_name.clone()));
                                             match var_offset {
                                                 Some (offset) => { 
@@ -1166,11 +1257,11 @@ fn is_a_var (assign : &parser::Assignment, var_name : &mut String) -> bool {
     result
 }
 
-fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     match un.child.clone() {
         Some(fact) => {
-            result.push_str(generate_factor(&*fact, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_factor(&*fact, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             match un.op.as_str(){
                 "!" => {
                     // MOVE TO EXTERNAL FUNCS LATER
@@ -1210,7 +1301,7 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                                         Some(exp) => {
                                             let mut var_name : String = String::new();
                                             if (is_a_var(&*exp.clone(), &mut var_name)) {
-                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map).as_str());
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                                                 assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
                                                 let var_offset = var_map.get(&(var_name.clone()));
                                                 match var_offset {
@@ -1224,12 +1315,12 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                                             }
                                             else {
                                                 println!("Tried to increment a non-variable.");
-                                                std::process::exit(1);       
+                                                exit_program();       
                                             }
                                         },
                                         None => {
                                             println!("Tried to increment a non-variable.");
-                                            std::process::exit(1);
+                                            exit_program();
                                         },
                                     }
                                 }
@@ -1260,7 +1351,7 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                                         Some(exp) => {
                                             let mut var_name : String = String::new();
                                             if (is_a_var(&*exp.clone(), &mut var_name)) {
-                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map).as_str());
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                                                 assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
                                                 let var_offset = var_map.get(&(var_name.clone()));
                                                 match var_offset {
@@ -1274,12 +1365,12 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                                             }
                                             else {
                                                 println!("Tried to increment a non-variable.");
-                                                std::process::exit(1);       
+                                                exit_program();       
                                             }
                                         },
                                         None => {
                                             println!("Tried to increment a non-variable.");
-                                            std::process::exit(1);
+                                            exit_program();
                                         },
                                     }
                                 }
@@ -1290,7 +1381,7 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
                 },
                 _ => {
                     println!("Found an unwritten unary: {}", un.op.as_str());
-                    std::process::exit(1);
+                    exit_program();
                 },
             }
         },
@@ -1300,11 +1391,11 @@ fn generate_unary(un : &parser::Unary, var_map : &mut HashMap<String, i32>, stac
     result
 }
 
-fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>) -> String {
+fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
     match un.child.clone() {
         Some(fact) => {
-            result.push_str(generate_factor(&*fact, var_map, stack_index, fn_index, cur_map).as_str());
+            result.push_str(generate_factor(&*fact, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
             match un.op.as_str(){
                 "++" => {
                     match un.child.clone() {
@@ -1312,7 +1403,7 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
                             match (un_child.var) {
                                 Some (var) => {
                                     // Assign new value to variable IF it exists.  MAKE THIS A SEP FUNC
-                                    assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing.");
+                                    assert!(var_map.contains_key(&(var.var_name.clone())), "Variable declaration not found when referencing ++(pre).");
                                     let var_offset = var_map.get(&(var.var_name.clone()));
                                     match var_offset {
                                         Some (offset) => { 
@@ -1329,7 +1420,7 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
                                         Some(exp) => {
                                             let mut var_name : String = String::new();
                                             if (is_a_var(&*exp.clone(), &mut var_name)) {
-                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map).as_str());
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                                                 assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
                                                 let var_offset = var_map.get(&(var_name.clone()));
                                                 match var_offset {
@@ -1344,12 +1435,12 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
                                             }
                                             else {
                                                 println!("Tried to increment a non-variable.");
-                                                std::process::exit(1);       
+                                                exit_program();       
                                             }
                                         },
                                         None => {
                                             println!("Tried to increment a non-variable.");
-                                            std::process::exit(1);
+                                            exit_program();
                                         },
                                     }
                                 },
@@ -1381,7 +1472,7 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
                                         Some(exp) => {
                                             let mut var_name : String = String::new();
                                             if (is_a_var(&*exp.clone(), &mut var_name)) {
-                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map).as_str());
+                                                result.push_str(generate_assignment(&*exp.clone(), var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
                                                 assert!(var_map.contains_key(&(var_name.clone())), "Variable declaration not found when referencing.");
                                                 let var_offset = var_map.get(&(var_name.clone()));
                                                 match var_offset {
@@ -1396,12 +1487,12 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
                                             }
                                             else {
                                                 println!("Tried to increment a non-variable.");
-                                                std::process::exit(1);       
+                                                exit_program();       
                                             }
                                         },
                                         None => {
                                             println!("Tried to increment a non-variable.");
-                                            std::process::exit(1);
+                                            exit_program();
                                         },
                                     }
                                 },

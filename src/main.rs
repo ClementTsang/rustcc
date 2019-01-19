@@ -33,13 +33,21 @@ fn generate_function(func : &parser::Function) -> String {
     let mut result : String = String::from(func.name.clone().as_str());
     result.push_str(":\n");
 
-    result.push_str("    pushl    %ebp # Opening function\n");
+    result.push_str("    pushl    %ebp # Set up stack frame\n");
     result.push_str("    movl     %esp, %ebp\n");
 
     let mut var_map : HashMap<String, i32> = HashMap::new();
-    let mut stack_index : i32 = 0;
+    let mut stack_index : i32 = 8;
     let mut fn_index : i32 = 0;  // I *should* use two numbers but quite frankly I don't think it matters...
     let mut cur_map : HashMap<String, i32> = HashMap::new();  // Each hashmap will be linked to its name as key and value as the assembly code
+
+    for param_name in func.params.clone() {
+        //Push new variable to hash map, decrement stack index.
+        var_map.insert(param_name.clone(), stack_index.clone());
+        cur_map.insert(param_name.clone(), stack_index.clone());
+        stack_index += 4;
+    }
+    stack_index = 0;
 
     for blk in &func.list_of_blk {
         match blk.state.clone() {
@@ -60,13 +68,27 @@ fn generate_function(func : &parser::Function) -> String {
     }
 
     result.push_str("    movl     $0, %eax # Default return value\n");
-    result.push_str("    movl     %ebp, %esp # Close function\n");
+    result.push_str("    movl     %ebp, %esp # Deallocate any local variables on stack\n");
     result.push_str("    popl     %ebp\n");
     result.push_str("    ret\n");
 
     result
 }
 
+
+fn generate_fn_call(fn_call : &parser::FnCall, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
+    let mut result = String::new();
+
+    for arg in fn_call.clone().args.iter().rev() {
+        result.push_str(generate_assignment(&arg, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+        result.push_str("    pushl    %eax\n");        
+    }
+
+    result.push_str(format!("    call     {}\n", fn_call.name).as_str());
+    result.push_str(format!("    addl     ${}, %esp", fn_call.args.len() * 4).as_str());
+
+    result
+}
 
 
 fn generate_compound(cmp : &parser::Compound, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
@@ -1089,45 +1111,47 @@ fn generate_factor(factor : &parser::Factor, var_map : &mut HashMap<String, i32>
         Some (pf_un) => {
             result.push_str(generate_postfix_unary(&*pf_un, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
         },
-        None => {
-            match factor.unary.clone() {
-                Some(un) => {
-                    result.push_str(generate_unary(&*un, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+        None => (),
+    }
+    match factor.unary.clone() {
+        Some(un) => {
+            result.push_str(generate_unary(&*un, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+        },
+        None => (),
+    }
+    match factor.exp.clone() {
+        Some(e) => {
+            result.push_str(generate_assignment(&*e, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+        },
+        None => (),
+    }
+    match factor.val {
+        Some(v) => {
+            result.push_str("    movl     $");
+            result.push_str((v).to_string().as_str());
+            result.push_str(",  %eax # Constant integer reference\n");
+        },
+        None => (),
+    }
+    match factor.var.clone() {
+        Some(va) => {
+            // Assign new value to variable IF it exists.
+            assert!(var_map.contains_key(&(va.var_name.clone())), "Variable declaration not found when referencing: {}.", va.var_name.clone());
+            let var_offset = var_map.get(&(va.var_name.clone()));
+            match var_offset {
+                Some (offset) => { 
+                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for {}\n", offset, va.var_name.clone()).as_str());
                 },
-                None => {
-                    match factor.exp.clone() {
-                        Some(e) => {
-                            result.push_str(generate_assignment(&*e, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
-                        },
-                        None => {
-                            match factor.val {
-                                Some(v) => {
-                                    result.push_str("    movl     $");
-                                    result.push_str((v).to_string().as_str());
-                                    result.push_str(",  %eax # Constant integer reference\n");
-                                },
-                                None => {
-                                    match factor.var.clone() {
-                                        Some(va) => {
-                                            // Assign new value to variable IF it exists.
-                                            assert!(var_map.contains_key(&(va.var_name.clone())), "Variable declaration not found when referencing: {}.", va.var_name.clone());
-                                            let var_offset = var_map.get(&(va.var_name.clone()));
-                                            match var_offset {
-                                                Some (offset) => { 
-                                                    result.push_str(format!("    movl     {}(%ebp), %eax # Variable reference for {}\n", offset, va.var_name.clone()).as_str());
-                                                },
-                                                None => (),
-                                            }
-                                        },
-                                        None => (),
-                                    }
-                                },
-                            }
-                        },
-                    }
-                }
+                None => (),
             }
         },
+        None => (),
+    }
+    match factor.fn_call.clone() {
+        Some(f) => {
+            result.push_str(generate_fn_call(&f, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
+        },
+        None => (),
     }
     result
 }
@@ -1515,10 +1539,12 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
 
 
 fn generate_assembly(prog : &parser::Program, filename : String) -> String {
-    let mut result = String::from(
-    "    .code32\n    .globl    main\n    .type main, @function\n\n");
+    let mut result = String::from("    .code32\n");
 
-    result.push_str(generate_function(&prog.fnc).as_str());
+    for fnc in &prog.list_of_fnc {
+        result.push_str(format!("    .globl    {}\n    .type {}, @function\n\n", fnc.name.clone(), fnc.name.clone()).as_str());
+        result.push_str(generate_function(&fnc).as_str());
+    }
 
     // Print out resulting assembly (for debugging).
     print_assembly(&result);

@@ -33,7 +33,7 @@ pub fn is_letter (c : char) -> bool {
 }
 
 pub fn is_punctuation (c : char) -> bool {
-    let punc = "{}();";
+    let punc = "{}();,";
     punc.contains(c)
 }
 
@@ -221,7 +221,8 @@ pub fn lexer(input : &mut String) -> Vec<Token> {
         }
     }
 
-    token_vec.push(Token{name : String::from("EOF TOKEN"), value : String::from("EOF")});
+    //token_vec.push(Token{name : String::from("EOF TOKEN"), value : String::from("EOFunc")});
+    token_vec.push(Token{name : String::from("EOF TOKEN"), value : String::from("EOFile")});
     token_vec
 }
 

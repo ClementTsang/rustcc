@@ -6,7 +6,7 @@ pub mod lexer;
 use std::fs;
 
 pub struct Program { 
-    pub fnc : Function,
+    pub list_of_fnc : Vec<Function>,
 }
 
 pub struct Function {
@@ -14,6 +14,11 @@ pub struct Function {
     pub return_type : String,
     pub list_of_blk : Vec<BlockItem>,
     pub params : Vec<String>,
+}
+
+pub struct FnCall {
+    pub name : String,
+    pub args : Vec<Assignment>,
 }
 
 pub struct BlockItem {
@@ -176,6 +181,7 @@ pub struct Factor {
     pub exp : Option<Box<Assignment>>,
     pub val : Option<i32>,
     pub var : Option<Variable>,
+    pub fn_call : Option<FnCall>,
 }
 
 pub struct Unary {
@@ -191,7 +197,7 @@ pub struct PostFixUnary {
 impl Program { 
     pub fn new () -> Program {
         Program {
-            fnc : Function::new(),
+            list_of_fnc : Vec::new(),
         }
     }
 }
@@ -203,6 +209,15 @@ impl Function {
             return_type : String::new(),
             list_of_blk : Vec::new(),
             params : Vec::new(),
+        }
+    }
+}
+
+impl FnCall {
+    pub fn new () -> FnCall {
+        FnCall {
+            name : String::new(),
+            args : Vec::new(),
         }
     }
 }
@@ -679,6 +694,7 @@ impl Factor {
             exp: None,
             val : None,
             var : None,
+            fn_call : None,
         }
     }
 
@@ -690,6 +706,7 @@ impl Factor {
             exp: None,
             val : Some(0),
             var : None,
+            fn_call : None,
         }
     }
 
@@ -701,6 +718,7 @@ impl Factor {
             exp: None,
             val : Some(1),
             var : None,
+            fn_call : None,
         }
     }
 }
@@ -752,6 +770,15 @@ impl Clone for For {
             optional_exp_1 : self.optional_exp_1.clone(),
             optional_exp_2 : self.optional_exp_2.clone(),
             statement : self.statement.clone(),
+        }
+    }
+}
+
+impl Clone for FnCall {
+    fn clone(&self) -> Self {
+        FnCall {
+            name : self.name.clone(),
+            args : self.args.clone(),
         }
     }
 }
@@ -993,6 +1020,7 @@ impl Clone for Factor {
             exp : self.exp.clone(),
             val : self.val,
             var: self.var.clone(),
+            fn_call : self.fn_call.clone(),
         }
     }
 }
@@ -1018,33 +1046,35 @@ impl Clone for PostFixUnary {
 pub fn print_ast (input_prog : &Program) {
     println!("=====AST PRINT=====");
 
-    println!("FUN {} {}:", input_prog.fnc.return_type, input_prog.fnc.name);
-    print!("     params: ( ");
-    for p in &input_prog.fnc.params {
-        print!("{} ", p);
-    }
-    println!(")");
-    println!("     body:");
-   
-    for bl_item in &input_prog.fnc.list_of_blk {
-        match bl_item.state.clone() {
-            Some (x) => {
-                print!("          {} ", x.name);
-                print!("[ ");
-                print_statement(&x);
-                println!(" ]");
-            },
-            None => (),
+    for fnc in &input_prog.list_of_fnc {
+        println!("FUN {} {}:", fnc.return_type, fnc.name);
+        print!("     params: ( ");
+        for p in &fnc.params {
+            print!("{} ", p);
         }
+        println!(")");
+        println!("     body:");
+    
+        for bl_item in &fnc.list_of_blk {
+            match bl_item.state.clone() {
+                Some (x) => {
+                    print!("          {} ", x.name);
+                    print!("[ ");
+                    print_statement(&x);
+                    println!(" ]");
+                },
+                None => (),
+            }
 
-        match bl_item.decl.clone() {
-            Some(x) => {
-                print!("          decl ");
-                print!("[ ");
-                print_declaration(&x);
-                print!(" ]\n");                
-            },
-            None => (),
+            match bl_item.decl.clone() {
+                Some(x) => {
+                    print!("          decl ");
+                    print!("[ ");
+                    print_declaration(&x);
+                    print!(" ]\n");                
+                },
+                None => (),
+            }
         }
     }
     
@@ -1703,9 +1733,9 @@ pub fn print_postfix_unary (pf_unary : &PostFixUnary) {
 pub fn parse_program(token_vec : &mut Vec<lexer::Token>) -> Program {
     let mut result : Program = Program::new(); 
    
-    // A program, by our grammar rules, MUST contain a function from the tokens passed in.
-    // We thus look for main(). 
-    result.fnc = parse_function(token_vec);
+    while (peek_next_token(token_vec).value != "EOFile") {
+        result.list_of_fnc.push(parse_function(token_vec));
+    }
 
     result
 }
@@ -1744,6 +1774,7 @@ pub fn peek_two_tokens(token_vec : &Vec<lexer::Token>) -> lexer::Token {
 
 pub fn peek_n_tokens(token_vec : &Vec<lexer::Token>, n : i32) -> lexer::Token {
     assert!(token_vec.len() >=2, "Token vector is not at least of size 2.");
+    assert!(n >= 2, "Expects greater than two for usage.");
 
     let mut tok_clone = token_vec.clone();
     for i in 0..n {
@@ -1753,6 +1784,7 @@ pub fn peek_n_tokens(token_vec : &Vec<lexer::Token>, n : i32) -> lexer::Token {
 }
 
 pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
+
     let mut result : Function  = Function::new();
     let mut tok : lexer::Token = get_next_token(token_vec);
 
@@ -1765,21 +1797,38 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
 
     tok = get_next_token(token_vec);
     assert!(tok.name == "Punc" && tok.value == "(", "Invalid punc. (\"(\")");
-    // Param names go in between here!
     tok = get_next_token(token_vec);
+
+    while (tok.value != ")") {
+        assert!(tok.value != "EOFunc" && tok.name != "EOF TOKEN", "Incorrect syntax, saw {}.", tok.value);
+        assert!(tok.value == "int", "Failed param type check, saw {}", tok.value);
+        tok = get_next_token(token_vec);
+        assert!(tok.name == "Identifier", "Bad param name.");
+        result.params.push(String::from(tok.value));
+        tok = get_next_token(token_vec);
+        if (tok.value == ",") {
+            tok = get_next_token(token_vec);
+        }
+    }
+
     assert!(tok.name == "Punc" && tok.value == ")", "Invalid punc. (\")\")");
 
     tok = get_next_token(token_vec);
-    assert!(tok.name == "Punc" && tok.value == "{", "Invalid punc. (\"{\")");
+    if (tok.value == "{") {
+        assert!(tok.name == "Punc" && tok.value == "{", "Invalid punc. (\"{\")");
 
-    // Block check
-    while (peek_two_tokens(token_vec).value != "EOF" && peek_two_tokens(token_vec).name != "EOF TOKEN") {
-        result.list_of_blk.push(parse_block_item(token_vec));
+        // Block check
+        while (peek_next_token(token_vec).value != "}") {
+            result.list_of_blk.push(parse_block_item(token_vec));
+        }
+
+        tok = get_next_token(token_vec);
+        assert!(tok.name == "Punc" && tok.value == "}", "Invalid punc. (\"}\")");
     }
-
-    tok = get_next_token(token_vec);
-    assert!(tok.name == "Punc" && tok.value == "}", "Invalid punc. (\"}\")");
-
+    else {
+        // Otherwise it is just an empty function, so we must look for a semicolon.
+        assert!(tok.name == "Punc" && tok.value == ";", "Invalid punc (;), saw {}.", tok.value); 
+    }
     result
 }
 
@@ -2514,6 +2563,29 @@ pub fn parse_term(token_vec : &mut Vec<lexer::Token>) -> Term {
 }
 
 
+pub fn parse_fn_call(token_vec : &mut Vec<lexer::Token>) -> FnCall {
+    let mut result : FnCall = FnCall::new();
+    let mut tok : lexer::Token = peek_next_token(token_vec);
+
+    result.name = tok.value;
+    token_vec.remove(0);
+    tok = get_next_token(token_vec);
+    assert!(tok.value == "(", "Missing ( in function call.");
+    tok = peek_next_token(token_vec);
+
+    while (tok.value != ")") {
+        result.args.push(parse_assign(token_vec));
+        tok = peek_next_token(token_vec);
+        if (tok.value == ",") {
+            token_vec.remove(0);
+            tok = peek_next_token(token_vec);
+        }
+    }
+    assert!(tok.value == ")", "Missing ) in function call.");
+    result
+}
+
+
 pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
     let mut result : Factor = Factor::new();
     let mut tok : lexer::Token = peek_next_token(token_vec);
@@ -2534,7 +2606,13 @@ pub fn parse_factor(token_vec : &mut Vec<lexer::Token>) -> Factor {
         //println!("Found num: {}", tok.value);
     }
     else if (tok.name == "Identifier") {
-        result.var = Some(Variable { var_name : tok.value.clone() });
+        // Either variable or function!
+        if (peek_two_tokens(token_vec).value == "(") {
+            result.fn_call = Some(parse_fn_call(token_vec));
+        }
+        else {
+            result.var = Some(Variable { var_name : tok.value.clone() });
+        }
         token_vec.remove(0);
         //println!("Found identifier: {}", tok.value);
     }

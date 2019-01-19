@@ -13,7 +13,13 @@ pub struct Function {
     pub name : String,
     pub return_type : String,
     pub list_of_blk : Vec<BlockItem>,
-    pub params : Vec<String>,
+    pub params : Vec<Parameter>,
+    pub is_definition : bool,
+}
+
+pub struct Parameter {
+    pub name : String,
+    pub param_type : String,
 }
 
 pub struct FnCall {
@@ -209,6 +215,7 @@ impl Function {
             return_type : String::new(),
             list_of_blk : Vec::new(),
             params : Vec::new(),
+            is_definition : false,
         }
     }
 }
@@ -227,6 +234,15 @@ impl BlockItem {
         BlockItem {
             state : None,
             decl : None,
+        }
+    }
+}
+
+impl Parameter {
+    pub fn new() -> Parameter {
+        Parameter {
+            name : String::new(),
+            param_type : String::new(),
         }
     }
 }
@@ -783,6 +799,15 @@ impl Clone for FnCall {
     }
 }
 
+impl Clone for Parameter {
+    fn clone(&self) -> Self {
+        Parameter {
+            name : self.name.clone(),
+            param_type : self.param_type.clone(),
+        }
+    }
+}
+
 impl Clone for ForDecl {
     fn clone(&self) -> Self {
         ForDecl {
@@ -1050,7 +1075,7 @@ pub fn print_ast (input_prog : &Program) {
         println!("FUN {} {}:", fnc.return_type, fnc.name);
         print!("     params: ( ");
         for p in &fnc.params {
-            print!("{} ", p);
+            print!("{} {} ", p.param_type.clone(), p.name.clone());
         }
         println!(")");
         println!("     body:");
@@ -1802,9 +1827,12 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
     while (tok.value != ")") {
         assert!(tok.value != "EOFunc" && tok.name != "EOF TOKEN", "Incorrect syntax, saw {}.", tok.value);
         assert!(tok.value == "int", "Failed param type check, saw {}", tok.value);
+        let mut parameter : Parameter = Parameter::new();
+        parameter.param_type = tok.value.clone();
         tok = get_next_token(token_vec);
         assert!(tok.name == "Identifier", "Bad param name.");
-        result.params.push(String::from(tok.value));
+        parameter.name = tok.value.clone();
+        result.params.push(parameter);
         tok = get_next_token(token_vec);
         if (tok.value == ",") {
             tok = get_next_token(token_vec);
@@ -1815,6 +1843,7 @@ pub fn parse_function(token_vec : &mut Vec<lexer::Token>) -> Function {
 
     tok = get_next_token(token_vec);
     if (tok.value == "{") {
+        result.is_definition = true;
         assert!(tok.name == "Punc" && tok.value == "{", "Invalid punc. (\"{\")");
 
         // Block check

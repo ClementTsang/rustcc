@@ -29,7 +29,39 @@ fn exit_program() {
     std::process::exit(1);
 }
 
-fn generate_function(func : &parser::Function) -> String {
+fn generate_function(func : &parser::Function, list_of_func : &Vec<parser::Function>) -> String {
+    let mut similar_count = 0;
+    for chk in list_of_func.clone() {
+        let counter = if (chk.params.len() > func.params.len()) {
+            func.params.len()
+        }
+        else {
+            chk.params.len()
+        };
+
+        for i in 0..counter {
+            match chk.params.get(i).clone() {
+                Some (x) => {
+                    match func.params.get(i).clone() {
+                        Some (y) => {
+                            if (x.param_type != y.param_type) {
+                                break;
+                            }
+                            else if (i == counter - 1){
+                                if (chk.is_definition == true || chk.params.len() != func.params.len()) {
+                                    similar_count += 1;
+                                }                         
+                            }
+                        },
+                        None => (),
+                    }
+                },
+                None => (),
+            }
+        }
+    }
+    assert!(similar_count <= 1, "Found a function that is too similar.");
+
     let mut result : String = String::from(func.name.clone().as_str());
     result.push_str(":\n");
 
@@ -41,10 +73,10 @@ fn generate_function(func : &parser::Function) -> String {
     let mut fn_index : i32 = 0;  // I *should* use two numbers but quite frankly I don't think it matters...
     let mut cur_map : HashMap<String, i32> = HashMap::new();  // Each hashmap will be linked to its name as key and value as the assembly code
 
-    for param_name in func.params.clone() {
+    for param in func.params.clone() {
         //Push new variable to hash map, decrement stack index.
-        var_map.insert(param_name.clone(), stack_index.clone());
-        cur_map.insert(param_name.clone(), stack_index.clone());
+        var_map.insert(param.name.clone(), stack_index.clone());
+        cur_map.insert(param.name.clone(), stack_index.clone());
         stack_index += 4;
     }
     stack_index = 0;
@@ -79,13 +111,15 @@ fn generate_function(func : &parser::Function) -> String {
 fn generate_fn_call(fn_call : &parser::FnCall, var_map : &mut HashMap<String, i32>, stack_index : &mut i32, fn_index : &mut i32, cur_map: &mut HashMap<String, i32>, loop_start : &mut String, loop_post : &mut String) -> String {
     let mut result = String::new();
 
+    //assert!(fn_call.args.len() == 1);
+
     for arg in fn_call.clone().args.iter().rev() {
         result.push_str(generate_assignment(&arg, var_map, stack_index, fn_index, cur_map, loop_start, loop_post).as_str());
         result.push_str("    pushl    %eax\n");        
     }
 
     result.push_str(format!("    call     {}\n", fn_call.name).as_str());
-    result.push_str(format!("    addl     ${}, %esp", fn_call.args.len() * 4).as_str());
+    result.push_str(format!("    addl     ${}, %esp\n", fn_call.args.len() * 4).as_str());
 
     result
 }
@@ -1539,11 +1573,13 @@ fn generate_postfix_unary(un : &parser::PostFixUnary, var_map : &mut HashMap<Str
 
 
 fn generate_assembly(prog : &parser::Program, filename : String) -> String {
-    let mut result = String::from("    .code32\n");
+    let mut result = String::from("    .code32");
 
     for fnc in &prog.list_of_fnc {
-        result.push_str(format!("    .globl    {}\n    .type {}, @function\n\n", fnc.name.clone(), fnc.name.clone()).as_str());
-        result.push_str(generate_function(&fnc).as_str());
+        if (fnc.name != String::new() && fnc.is_definition == true){ 
+            result.push_str(format!("\n    .globl    {}\n    .type {}, @function\n\n", fnc.name.clone(), fnc.name.clone()).as_str());
+            result.push_str(generate_function(&fnc, &prog.list_of_fnc).as_str());
+        }
     }
 
     // Print out resulting assembly (for debugging).

@@ -9,6 +9,7 @@ Currently, rustcc supports the following features:
 * If-else branching
 * Ternary operator
 * While loops, do-while loops, for loops, break, continue
+* Function calling and creation
 
 ## Installation
 To install, ensure beforehand that you have [Rust and Cargo installed.](https://www.rust-lang.org/tools/install)  After that, clone the repository.  Then, run ``cargo build --release``.

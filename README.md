@@ -11,6 +11,9 @@ Currently, rustcc supports the following features:
 * While loops, do-while loops, for loops, break, continue
 * Function calling and creation
 
+As of now, rustcc only supports variables of type int.
+
+
 ## Installation
 To install, ensure beforehand that you have [Rust and Cargo installed.](https://www.rust-lang.org/tools/install)  After that, clone the repository.  Then, run ``cargo build --release``.
 
@@ -25,4 +28,5 @@ Alternatively, you can directly run ``./target/release/rustcc /path/to/source.c`
 
 ## Disclaimer
 rustcc is a project done purely out of personal interest.  The compiled x86 code is most likely not optimized and the possibility of something not working or being supported is quite probable.  I am not responsible for anything going wrong with the use of this.
+
 

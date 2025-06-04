@@ -1,7 +1,7 @@
 # rustcc - a Rust C compiler 
 A basic C compiler written in Rust that compiles C code into x86 assembly, following GAS/AT&T syntax, with no external Rust dependencies.  Inspired by [this post by Nora Sandler](https://norasandler.com/2017/11/29/Write-a-Compiler.html).
 
-Note this is mostly done for learning, and isn't intended to be used seriously.
+Note this was done for learning purposes as my intro to Rust, and isn't intended to be used too seriously.
 
 ## Features
 Currently, rustcc supports the following features:
